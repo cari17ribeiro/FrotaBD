@@ -26,7 +26,32 @@ import {
 } from 'lucide-react';
 
 // ============================================================================
-// CONFIGURAÇÃO REAL DO SUPABASE (Carregamento via CDN para evitar erros de build)
+// FUNÇÃO UTILITÁRIA PARA CÁLCULO DE PERÍODO (Dia 21 ao Dia 20)
+// ============================================================================
+const calcularPeriodoViagem = (dataStr) => {
+  if (!dataStr) return '';
+  try {
+    const [anoStr, mesStr, diaStr] = dataStr.split('-');
+    let ano = parseInt(anoStr, 10);
+    let mes = parseInt(mesStr, 10);
+    const dia = parseInt(diaStr, 10);
+
+    // Se o dia for >= 21, pertence à competência (mês) seguinte
+    if (dia >= 21) {
+      mes += 1;
+      if (mes > 12) {
+        mes = 1;
+        ano += 1;
+      }
+    }
+    return `${mes.toString().padStart(2, '0')}/${ano}`;
+  } catch (e) {
+    return '';
+  }
+};
+
+// ============================================================================
+// CONFIGURAÇÃO REAL DO SUPABASE
 // ============================================================================
 const supabaseUrl = 'https://dwlcaplumgtgvbducrev.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3bGNhcGx1bWd0Z3ZiZHVjcmV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY4MzY5NDMsImV4cCI6MjA2MjQxMjk0M30.8oGZIvEIruVdOjuMT-oPtgOGLh_QgfR3XV07V3AOe40';
@@ -43,10 +68,9 @@ export default function App() {
   const [correcoesBloqueadas, setCorrecoesBloqueadas] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(false);
 
-  // Carrega dependências externas dinamicamente para evitar falhas de compilação
+  // Injeta Tailwind de forma segura para ambientes de pré-visualização
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      // Fontes e Tailwind
       if (!document.getElementById('google-fonts-inter')) {
         const fontLink = document.createElement('link');
         fontLink.id = 'google-fonts-inter';
@@ -58,14 +82,13 @@ export default function App() {
         style.innerHTML = `body { font-family: 'Inter', sans-serif; }`;
         document.head.appendChild(style);
       }
-
       if (!document.getElementById('tailwind-script')) {
-        const twScript = document.createElement('script');
-        twScript.id = 'tailwind-script';
-        twScript.src = 'https://cdn.tailwindcss.com';
-        document.head.appendChild(twScript);
+        const tw = document.createElement('script');
+        tw.id = 'tailwind-script';
+        tw.src = 'https://cdn.tailwindcss.com';
+        document.head.appendChild(tw);
       }
-      
+
       // Supabase
       if (!document.getElementById('supabase-script')) {
         const supaScript = document.createElement('script');
@@ -90,7 +113,6 @@ export default function App() {
     setIsLoadingData(true);
 
     try {
-      // Busca primeiro as configurações globais
       const { data: configData } = await supabase.from('configuracoes').select('*').eq('id', 1).single();
       if (configData) {
         setPremiosLiberados(configData.premios_liberados);
@@ -300,7 +322,7 @@ function LoginScreen({ onLogin, supabase }) {
             disabled={isLoggingIn}
             className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-700 hover:to-teal-600 text-white py-4 px-4 rounded-2xl transition-all font-bold text-lg shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transform hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none mt-2"
           >
-            {isLoggingIn ? <Loader2 className="w-6 h-6 animate-spin" /> : <span>Entrar no Portal</span>}
+            {isLoggingIn ? <Loader2 className="w-6 h-6 animate-spin" /> : <span>Aceder ao Painel</span>}
           </button>
         </form>
       </div>
@@ -313,15 +335,74 @@ function LoginScreen({ onLogin, supabase }) {
 // ============================================================================
 function DriverDashboard({ currentUser, viagens, setViagens, pendentes, setPendentes, resumos, diesel, premiosLiberados, correcoesBloqueadas, refreshData, supabase }) {
   const [showAddModal, setShowAddModal] = useState(false);
+  const [filtroCompetencia, setFiltroCompetencia] = useState('');
+  const [filtroPeriodo, setFiltroPeriodo] = useState('');
+  const [filtroDiesel, setFiltroDiesel] = useState('');
 
-  const meuResumo = useMemo(() => resumos.find(r => r.email === currentUser.email) || {}, [resumos, currentUser.email]);
-  const meuDiesel = useMemo(() => diesel.find(d => d.email === currentUser.email) || {}, [diesel, currentUser.email]);
-  
-  const historicoCompleto = useMemo(() => {
+  // Prepara o Histórico mapeando o período exato (dia 21 a 20)
+  const historicoComPeriodo = useMemo(() => {
     const confirmadas = viagens.filter(v => v.email === currentUser.email);
     const enviadas = pendentes.filter(p => p.email === currentUser.email && p.status !== 'Aprovado');
-    return [...confirmadas, ...enviadas].sort((a, b) => new Date(b.data) - new Date(a.data));
+    const todos = [...confirmadas, ...enviadas].sort((a, b) => new Date(b.data) - new Date(a.data));
+    
+    return todos.map(item => ({
+      ...item,
+      _periodo: calcularPeriodoViagem(item.data)
+    }));
   }, [viagens, pendentes, currentUser.email]);
+
+  // Lista de Meses disponíveis nos Resumos (Impo/Expo/Prémio)
+  const competenciasResumoDisponiveis = useMemo(() => {
+    const c1 = resumos.filter(r => r.email === currentUser.email).map(r => r.mes || r.competencia);
+    return [...new Set(c1.filter(Boolean))].sort((a, b) => {
+      const [m1, y1] = a.split('/');
+      const [m2, y2] = b.split('/');
+      if (y1 !== y2) return (Number(y2) || 0) - (Number(y1) || 0);
+      return (Number(m2) || 0) - (Number(m1) || 0);
+    });
+  }, [resumos, currentUser.email]);
+
+  // Lista de Meses disponíveis no Diesel
+  const competenciasDieselDisponiveis = useMemo(() => {
+    const c2 = diesel.filter(d => d.email === currentUser.email).map(d => d.competencia || d.mes);
+    return [...new Set(c2.filter(Boolean))].sort((a, b) => {
+      const [m1, y1] = a.split('/');
+      const [m2, y2] = b.split('/');
+      if (y1 !== y2) return (Number(y2) || 0) - (Number(y1) || 0);
+      return (Number(m2) || 0) - (Number(m1) || 0);
+    });
+  }, [diesel, currentUser.email]);
+
+  // Lista de Períodos (21 a 20) disponíveis no Histórico
+  const periodosDisponiveis = useMemo(() => {
+    const periodos = historicoComPeriodo.map(item => item._periodo).filter(Boolean);
+    return [...new Set(periodos)].sort((a, b) => {
+      const [m1, y1] = a.split('/');
+      const [m2, y2] = b.split('/');
+      if (y1 !== y2) return (Number(y2) || 0) - (Number(y1) || 0);
+      return (Number(m2) || 0) - (Number(m1) || 0);
+    });
+  }, [historicoComPeriodo]);
+
+  // Filtra as Estatísticas Gerais (Resumo)
+  const meuResumo = useMemo(() => {
+    const driverResumos = resumos.filter(r => r.email === currentUser.email);
+    if (filtroCompetencia) return driverResumos.find(r => r.mes === filtroCompetencia || r.competencia === filtroCompetencia) || driverResumos[0] || {};
+    return driverResumos[0] || {};
+  }, [resumos, currentUser.email, filtroCompetencia]);
+
+  // Filtra a Estatística específica do Diesel
+  const meuDiesel = useMemo(() => {
+    const driverDiesel = diesel.filter(d => d.email === currentUser.email);
+    if (filtroDiesel) return driverDiesel.find(d => d.competencia === filtroDiesel || d.mes === filtroDiesel) || driverDiesel[0] || {};
+    return driverDiesel[0] || {};
+  }, [diesel, currentUser.email, filtroDiesel]);
+  
+  // Filtra as Viagens com base no Período selecionado
+  const historicoFiltrado = useMemo(() => {
+    if (!filtroPeriodo) return historicoComPeriodo;
+    return historicoComPeriodo.filter(item => item._periodo === filtroPeriodo);
+  }, [historicoComPeriodo, filtroPeriodo]);
 
   const handleAddTrip = async (newTripData) => {
     const novaPendente = {
@@ -356,10 +437,26 @@ function DriverDashboard({ currentUser, viagens, setViagens, pendentes, setPende
 
   return (
     <div className="space-y-8">
-      {/* Welcome Section */}
-      <div>
-        <h1 className="text-3xl font-black text-slate-800 tracking-tight">Olá, {currentUser.motorista.split(' ')[0]} 👋</h1>
-        <p className="text-slate-500 font-medium mt-1">Aqui está o resumo da sua performance neste período.</p>
+      {/* Welcome Section & Filtro de Desempenho */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-black text-slate-800 tracking-tight">Olá, {currentUser.motorista.split(' ')[0]} 👋</h1>
+          <p className="text-slate-500 font-medium mt-1">Aqui está o resumo da sua performance.</p>
+        </div>
+        
+        <div className="flex items-center space-x-3 bg-white px-5 py-3 rounded-2xl shadow-sm border border-slate-200/60 w-full sm:w-auto">
+          <Award className="w-5 h-5 text-teal-500 flex-shrink-0" />
+          <select 
+            value={filtroCompetencia} 
+            onChange={e => setFiltroCompetencia(e.target.value)} 
+            className="bg-transparent text-sm font-bold text-slate-700 outline-none cursor-pointer w-full"
+          >
+            <option value="">Desempenho (Todos)</option>
+            {competenciasResumoDisponiveis.map(m => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Estatísticas */}
@@ -372,15 +469,15 @@ function DriverDashboard({ currentUser, viagens, setViagens, pendentes, setPende
           icon={<Package className="h-6 w-6" />} color="indigo" 
           title="Extras / Total" value={meuResumo.extra || 0} subtitle={`(${meuResumo.total_viagens || 0} viagens)`} 
         />
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200/60 hover:shadow-lg transition-all duration-300 group flex items-center space-x-5 relative overflow-hidden">
+        <div className="bg-white p-5 sm:p-6 rounded-3xl shadow-sm border border-slate-200/60 hover:shadow-lg transition-all duration-300 group flex items-start space-x-4 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-24 h-24 bg-teal-50 rounded-bl-full -z-10 group-hover:scale-125 transition-transform duration-500"></div>
-          <div className="bg-teal-50 text-teal-600 p-4 rounded-2xl group-hover:scale-110 transition-transform duration-300">
+          <div className="bg-teal-50 text-teal-600 p-3.5 sm:p-4 rounded-2xl group-hover:scale-110 transition-transform duration-300 shrink-0">
             <Award className="h-6 w-6" />
           </div>
-          <div className="flex-1">
-            <p className="text-sm text-slate-500 font-semibold mb-1">Prémio Atual</p>
+          <div className="flex-1 min-w-0 flex flex-col justify-center min-h-[56px]">
+            <p className="text-sm text-slate-500 font-semibold mb-0.5 truncate">Prémio Atual</p>
             {premiosLiberados ? (
-              <p className="text-2xl font-black text-teal-600 tracking-tight">{meuResumo.premio || 'R$ 0,00'}</p>
+              <p className="text-2xl font-black text-teal-600 tracking-tight truncate">{meuResumo.premio || 'R$ 0,00'}</p>
             ) : (
               <p className="text-[11px] font-bold text-slate-400 leading-snug">Calculado após as correções</p>
             )}
@@ -388,7 +485,24 @@ function DriverDashboard({ currentUser, viagens, setViagens, pendentes, setPende
         </div>
         <StatCard 
           icon={<Droplet className="h-6 w-6" />} color="cyan" 
-          title="Média Diesel" value={meuDiesel.media || '0.00'} subtitle="km/L" 
+          title="Média Diesel" value={meuDiesel.media || '0.00'} subtitle="km/L"
+          extraContent={
+            <div className="relative mt-2">
+              <select 
+                value={filtroDiesel} 
+                onChange={e => setFiltroDiesel(e.target.value)} 
+                className="w-full text-[11px] font-bold text-cyan-700 bg-cyan-50/50 border border-cyan-100/80 rounded-lg px-2.5 py-1.5 outline-none focus:ring-2 focus:ring-cyan-500/20 cursor-pointer appearance-none pr-6"
+              >
+                <option value="">Última Competência</option>
+                {competenciasDieselDisponiveis.map(m => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none">
+                <ChevronRight className="w-3 h-3 text-cyan-600 rotate-90" />
+              </div>
+            </div>
+          }
         />
       </div>
 
@@ -412,19 +526,36 @@ function DriverDashboard({ currentUser, viagens, setViagens, pendentes, setPende
 
       {/* Tabela de Histórico */}
       <div className="bg-white rounded-3xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100 overflow-hidden">
-        <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-          <h3 className="text-lg font-bold text-slate-800">Histórico de Movimentações</h3>
-          <span className="text-sm font-semibold text-slate-400">{historicoCompleto.length} registos</span>
+        <div className="px-6 py-5 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h3 className="text-lg font-bold text-slate-800">Histórico de Movimentações</h3>
+            <span className="text-sm font-semibold text-slate-400">{historicoFiltrado.length} registos encontrados</span>
+          </div>
+          
+          {/* Filtro Específico para Viagens (Período 21 a 20) */}
+          <div className="flex items-center space-x-2 bg-white px-3 py-2 rounded-xl shadow-sm border border-slate-200/60 w-full sm:w-auto">
+            <Filter className="w-4 h-4 text-blue-500 flex-shrink-0" />
+            <select 
+              value={filtroPeriodo} 
+              onChange={e => setFiltroPeriodo(e.target.value)} 
+              className="bg-transparent text-sm font-bold text-slate-700 outline-none cursor-pointer w-full"
+            >
+              <option value="">Filtro de Período (21 a 20)</option>
+              {periodosDisponiveis.map(m => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </div>
         </div>
         
-        {historicoCompleto.length === 0 ? (
+        {historicoFiltrado.length === 0 ? (
           <div className="p-16 text-center flex flex-col items-center">
             <div className="bg-blue-50 p-6 rounded-full mb-4"><Truck className="h-10 w-10 text-blue-300" /></div>
-            <p className="text-slate-500 font-medium text-lg">Sem registos no período atual.</p>
+            <p className="text-slate-500 font-medium text-lg">Sem registos no período selecionado.</p>
           </div>
         ) : (
           <ul className="divide-y divide-slate-100">
-            {historicoCompleto.map(item => {
+            {historicoFiltrado.map(item => {
               const isEmAnalise = item.status === 'Em Análise' || item.status === 'inclusa';
               const isReprovado = item.status === 'Reprovado';
               const isBlockCheckbox = isEmAnalise || isReprovado;
@@ -461,7 +592,10 @@ function DriverDashboard({ currentUser, viagens, setViagens, pendentes, setPende
                         </div>
                         
                         <div className="text-sm text-slate-500 flex flex-wrap gap-x-6 gap-y-2 font-medium">
-                          <span className="flex items-center bg-slate-50 px-2.5 py-1 rounded-md border border-slate-100"><Clock className="w-3.5 h-3.5 mr-1.5 text-blue-400"/> {new Date(item.data).toLocaleDateString('pt-BR')}</span>
+                          <span className="flex items-center bg-slate-50 px-2.5 py-1 rounded-md border border-slate-100" title="Período de Faturação">
+                            <Clock className="w-3.5 h-3.5 mr-1.5 text-blue-400"/> 
+                            {new Date(item.data).toLocaleDateString('pt-BR')} <span className="text-slate-400 ml-1">({item._periodo})</span>
+                          </span>
                           <span className="flex items-center bg-slate-50 px-2.5 py-1 rounded-md border border-slate-100"><Package className="w-3.5 h-3.5 mr-1.5 text-teal-400"/> {item.container || 'S/ Contentor'}</span>
                           <span className="flex items-center bg-slate-50 px-2.5 py-1 rounded-md border border-slate-100"><FileText className="w-3.5 h-3.5 mr-1.5 text-indigo-400"/> {item.tipo}</span>
                         </div>
@@ -507,7 +641,7 @@ function DriverDashboard({ currentUser, viagens, setViagens, pendentes, setPende
 }
 
 // Pequeno Componente para os Cards
-function StatCard({ icon, color, title, value, subtitle }) {
+function StatCard({ icon, color, title, value, subtitle, extraContent }) {
   const colors = {
     blue: 'bg-blue-50 text-blue-600',
     indigo: 'bg-indigo-50 text-indigo-600',
@@ -515,15 +649,16 @@ function StatCard({ icon, color, title, value, subtitle }) {
     cyan: 'bg-cyan-50 text-cyan-600'
   };
   return (
-    <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200/60 hover:shadow-lg transition-all duration-300 group flex items-center space-x-5">
-      <div className={`${colors[color]} p-4 rounded-2xl group-hover:scale-110 transition-transform duration-300`}>
+    <div className="bg-white p-5 sm:p-6 rounded-3xl shadow-sm border border-slate-200/60 hover:shadow-lg transition-all duration-300 group flex items-start space-x-4">
+      <div className={`${colors[color]} p-3.5 sm:p-4 rounded-2xl group-hover:scale-110 transition-transform duration-300 shrink-0`}>
         {icon}
       </div>
-      <div>
-        <p className="text-sm text-slate-500 font-semibold mb-1">{title}</p>
-        <p className="text-2xl font-black text-slate-800 tracking-tight">
+      <div className="flex-1 min-w-0 flex flex-col justify-center min-h-[56px]">
+        <p className="text-sm text-slate-500 font-semibold mb-0.5 truncate">{title}</p>
+        <p className="text-2xl font-black text-slate-800 tracking-tight truncate">
           {value} {subtitle && <span className="text-sm font-medium text-slate-400 ml-1">{subtitle}</span>}
         </p>
+        {extraContent}
       </div>
     </div>
   );
@@ -588,10 +723,10 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
     if (actionState.type === 'approve') {
       await supabase.from('viagens_pendentes').update({ status: 'Aprovado', resposta: actionMessage || null }).eq('id', item.id);
       
-      const [ano, mesStr] = item.data.split('-');
+      const mesFormatado = calcularPeriodoViagem(item.data);
       await supabase.from('minhas_viagens').insert([{
         email: item.email, origem: item.origem, destino: item.destino, container: item.container,
-        data: item.data, status: 'Aprovada', motorista: item.nome, mes: `${mesStr}/${ano}`, tipo: item.tipo, resposta: actionMessage || null
+        data: item.data, status: 'Aprovada', motorista: item.nome, mes: mesFormatado, tipo: item.tipo, resposta: actionMessage || null
       }]);
     } else {
       await supabase.from('viagens_pendentes').update({ status: 'Reprovado', resposta: actionMessage }).eq('id', item.id);
@@ -609,7 +744,7 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
       {/* Header Admin */}
       <div className="flex flex-col lg:flex-row lg:justify-between lg:items-end gap-6">
         <div>
-          <h1 className="text-3xl font-black text-slate-800 tracking-tight">Centro de Controle</h1>
+          <h1 className="text-3xl font-black text-slate-800 tracking-tight">Centro de Controlo</h1>
           <p className="text-slate-500 mt-1 font-medium text-lg">Faça a gestão das solicitações e operações da frota.</p>
         </div>
         
