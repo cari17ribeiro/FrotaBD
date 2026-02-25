@@ -294,7 +294,7 @@ function LoginScreen({ onLogin, supabase }) {
           )}
 
           <div className="space-y-1.5">
-            <label className="block text-sm font-bold text-slate-700 ml-1">E-mail Corporativo</label>
+            <label className="block text-sm font-bold text-slate-700 ml-1">Login </label>
             <input 
               type="email" 
               required
@@ -306,7 +306,7 @@ function LoginScreen({ onLogin, supabase }) {
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-sm font-bold text-slate-700 ml-1">Palavra-passe</label>
+            <label className="block text-sm font-bold text-slate-700 ml-1">Senha</label>
             <input 
               type="password" 
               required
