@@ -25,9 +25,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 
-// ============================================================================
-// FUNÇÃO UTILITÁRIA PARA CÁLCULO DE PERÍODO (Dia 21 ao Dia 20)
-// ============================================================================
+
 const calcularPeriodoViagem = (dataStr) => {
   if (!dataStr) return '';
   try {
@@ -50,9 +48,6 @@ const calcularPeriodoViagem = (dataStr) => {
   }
 };
 
-// ============================================================================
-// CONFIGURAÇÃO REAL DO SUPABASE
-// ============================================================================
 const supabaseUrl = 'https://dwlcaplumgtgvbducrev.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3bGNhcGx1bWd0Z3ZiZHVjcmV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY4MzY5NDMsImV4cCI6MjA2MjQxMjk0M30.8oGZIvEIruVdOjuMT-oPtgOGLh_QgfR3XV07V3AOe40';
 let supabase = null; 
@@ -236,9 +231,7 @@ export default function App() {
   );
 }
 
-// ============================================================================
-// COMPONENTE: TELA DE LOGIN (Design Claro)
-// ============================================================================
+
 function LoginScreen({ onLogin, supabase }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -322,7 +315,7 @@ function LoginScreen({ onLogin, supabase }) {
             disabled={isLoggingIn}
             className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-700 hover:to-teal-600 text-white py-4 px-4 rounded-2xl transition-all font-bold text-lg shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transform hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none mt-2"
           >
-            {isLoggingIn ? <Loader2 className="w-6 h-6 animate-spin" /> : <span>Aceder ao Painel</span>}
+            {isLoggingIn ? <Loader2 className="w-6 h-6 animate-spin" /> : <span> Acessar Portal </span>}
           </button>
         </form>
       </div>
@@ -330,9 +323,7 @@ function LoginScreen({ onLogin, supabase }) {
   );
 }
 
-// ============================================================================
-// COMPONENTE: PAINEL DO MOTORISTA
-// ============================================================================
+
 function DriverDashboard({ currentUser, viagens, setViagens, pendentes, setPendentes, resumos, diesel, premiosLiberados, correcoesBloqueadas, refreshData, supabase }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [filtroCompetencia, setFiltroCompetencia] = useState('');
@@ -664,9 +655,7 @@ function StatCard({ icon, color, title, value, subtitle, extraContent }) {
   );
 }
 
-// ============================================================================
-// COMPONENTE: PAINEL DO ADMIN (Setor de Fidelidade)
-// ============================================================================
+
 function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosLiberados, setPremiosLiberados, correcoesBloqueadas, setCorrecoesBloqueadas, refreshData, supabase }) {
   const [activeTab, setActiveTab] = useState('Em Análise'); 
   const [actionState, setActionState] = useState({ id: null, type: null }); 
@@ -1034,9 +1023,7 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
   );
 }
 
-// ============================================================================
-// COMPONENTE AUXILIAR: MODAL DE ADIÇÃO
-// ============================================================================
+
 function AddTripModal({ currentUser, onClose, onSave, supabase }) {
   const [formData, setFormData] = useState({
     data: '', origem: '', destino: '', container: '', tipo: 'Importação', mensagem: ''
@@ -1154,9 +1141,7 @@ function AddTripModal({ currentUser, onClose, onSave, supabase }) {
   );
 }
 
-// ============================================================================
-// COMPONENTE AUXILIAR: BADGE DE STATUS
-// ============================================================================
+
 function StatusBadge({ status }) {
   const styles = {
     confirmada: 'bg-emerald-100 text-emerald-700 border-emerald-200',
