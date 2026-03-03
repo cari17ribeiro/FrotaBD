@@ -22,7 +22,10 @@ import {
   Unlock,
   Lock,
   Loader2,
-  ChevronRight
+  ChevronRight,
+  Users,
+  UserPlus,
+  Download
 } from 'lucide-react';
 
 // ============================================================================
@@ -329,7 +332,7 @@ function LoginScreen({ onLogin, supabase }) {
             disabled={isLoggingIn}
             className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-700 hover:to-teal-600 text-white py-4 px-4 rounded-2xl transition-all font-bold text-lg shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transform hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none mt-2"
           >
-            {isLoggingIn ? <Loader2 className="w-6 h-6 animate-spin" /> : <span>Entrar</span>}
+            {isLoggingIn ? <Loader2 className="w-6 h-6 animate-spin" /> : <span>Aceder ao Painel</span>}
           </button>
         </form>
       </div>
@@ -670,6 +673,13 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
   const [viewImageUrl, setViewImageUrl] = useState(null);
   const [isImporting, setIsImporting] = useState(false);
 
+  // States Cadastro Motorista
+  const [nomeMotorista, setNomeMotorista] = useState('');
+  const [emailMotorista, setEmailMotorista] = useState('');
+  const [usuarioMotorista, setUsuarioMotorista] = useState('');
+  const [senhaMotorista, setSenhaMotorista] = useState(''); // Novo campo de senha
+  const [isRegistering, setIsRegistering] = useState(false);
+
   const [sortBy, setSortBy] = useState('data_desc');
   const [filterMotorista, setFilterMotorista] = useState('');
   const [filterMes, setFilterMes] = useState('');
@@ -739,6 +749,71 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
     refreshData(); 
   };
 
+  // Funções de Cadastro e Exportação de Motoristas
+  const handleCadastrarMotorista = async (e) => {
+    e.preventDefault();
+    setIsRegistering(true);
+    
+    try {
+      // 1. Cria um cliente secundário para não sobrescrever a sessão do Admin atual
+      const tempClient = window.supabase.createClient(supabaseUrl, supabaseKey, {
+        auth: { persistSession: false }
+      });
+
+      // 2. Insere na Autenticação do Supabase
+      const { data: authData, error: authError } = await tempClient.auth.signUp({
+        email: emailMotorista,
+        password: senhaMotorista,
+      });
+
+      if (authError) throw new Error('Erro ao criar credenciais de acesso: ' + authError.message);
+      
+      // Captura o ID real gerado pelo Auth
+      const authUserId = authData?.user?.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'id-' + Date.now());
+
+      // 3. Insere na Tabela do Banco de Dados vinculando o ID
+      const { error: dbError } = await supabase.from('motoristas_cadastrados').insert([{
+        id: authUserId,
+        motorista: nomeMotorista,
+        email: emailMotorista,
+        usuario: usuarioMotorista || null,
+        precisa_trocar_senha: true,
+        admin: false
+      }]);
+
+      if (dbError) throw new Error('Erro ao guardar informações na tabela: ' + dbError.message);
+
+      alert('Motorista cadastrado com sucesso! A conta de acesso já está ativa.');
+      setNomeMotorista('');
+      setEmailMotorista('');
+      setUsuarioMotorista('');
+      setSenhaMotorista('');
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      setIsRegistering(false);
+    }
+  };
+
+  const handleExportarMotoristas = async () => {
+    const { data, error } = await supabase.from('motoristas_cadastrados').select('motorista, email');
+    
+    if (error) {
+      alert('Erro ao buscar a lista de motoristas cadastrados.');
+      return;
+    }
+
+    if (!window.XLSX) {
+      alert('A biblioteca do Excel está a carregar. Tente novamente.');
+      return;
+    }
+
+    const ws = window.XLSX.utils.json_to_sheet(data);
+    const wb = window.XLSX.utils.book_new();
+    window.XLSX.utils.book_append_sheet(wb, ws, "Motoristas Cadastrados");
+    window.XLSX.writeFile(wb, "motoristas_cadastrados.xlsx");
+  };
+
   // Exportação em XLSX
   const baixarModeloXLSX = (tipo) => {
     if (!window.XLSX) return alert("Biblioteca Excel a carregar. Tente novamente em breves instantes.");
@@ -749,7 +824,7 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
     if (tipo === 'viagens') {
       data = [
         ["email", "origem", "destino", "container", "data", "motorista", "tipo", "mes", "status"],
-        ["motorista@premio.com", "Santos - Brasil", "CLIA", "MSKU1234567", "15/03/2026", "João Silva", "IMPO", "março", "pendente"]
+        ["motorista@premio.com", "Santos-Brasil", "CLIA", "MSKU1234567", "15/03/2026", "João Silva", "IMPO", "março", "pendente"]
       ];
       filename = "modelo_base_viagens.xlsx";
     } else if (tipo === 'resumos') {
@@ -819,7 +894,7 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
       {/* Header Admin */}
       <div className="flex flex-col lg:flex-row lg:justify-between lg:items-end gap-6">
         <div>
-          <h1 className="text-3xl font-black text-slate-800 tracking-tight">Painel de Controle</h1>
+          <h1 className="text-3xl font-black text-slate-800 tracking-tight">Painel de Controle </h1>
           <p className="text-slate-500 mt-1 font-medium text-lg">Faça a gestão das solicitações e operações da frota.</p>
         </div>
         
@@ -856,7 +931,8 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
           { id: 'Em Análise', label: 'Pendentes', badge: aguardando.length },
           { id: 'historico', label: 'Histórico' },
           { id: 'todas', label: 'Base Completa' },
-          { id: 'importar', label: 'Importar Lotes', icon: <FileSpreadsheet className="w-4 h-4 mr-2" /> }
+          { id: 'importar', label: 'Importar Lotes', icon: <FileSpreadsheet className="w-4 h-4 mr-2" /> },
+          { id: 'motoristas', label: 'Motoristas', icon: <Users className="w-4 h-4 mr-2" /> }
         ].map(tab => (
           <button
             key={tab.id}
@@ -937,10 +1013,85 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
               <div className="bg-blue-50 p-5 rounded-2xl flex items-start space-x-3 border border-blue-100">
                 <AlertCircle className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
                 <p className="text-sm text-blue-800 leading-relaxed font-medium">
-                  <strong>Instruções de Importação Direta:</strong><br/>
-                  1. Utilize sempre o "Modelo" para garantir que os títulos das colunas estão corretos.<br/>
-                  2. Preencha e salve a sua planilha Excel e clique em "Importar". O sistema injeta os dados de forma massiva.<br/>
+                  <strong>Intruções</strong><br /><br />
+                  - Mês: informar sempre em letras minúsculas<br />
+                 &nbsp;&nbsp;Exemplo: março<br /><br />
+                 - Operação: informar sempre em letras maiúsculas<br />
+                 &nbsp;&nbsp;Valores permitidos: IMPO, EXPO ou EXTRA<br /><br />
+                 - Status: preencher sempre como <strong>pendente</strong><br /><br />
+                 - E-mail: deve ser o mesmo e-mail cadastrado na base de motoristas<br /><br />
+                 ⚠️ Registros fora desse padrão podem falhar na importação.
                 </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Aba de Motoristas */}
+        {activeTab === 'motoristas' && (
+          <div className="p-6 sm:p-10">
+            <div className="max-w-5xl mx-auto">
+              <div className="text-center mb-10">
+                <h3 className="text-2xl font-black text-slate-800">Gestão de Motoristas</h3>
+                <p className="text-slate-500 mt-2 font-medium">Cadastre novos membros da equipa e exporte a base atual.</p>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Formulário de Cadastro */}
+                <div className="lg:col-span-2 bg-slate-50 p-6 sm:p-8 rounded-3xl border border-slate-200/60 shadow-sm">
+                  <h4 className="font-bold text-slate-800 text-lg mb-6 flex items-center">
+                    <UserPlus className="w-5 h-5 mr-2 text-blue-600" /> Cadastrar Novo Motorista
+                  </h4>
+                  <form onSubmit={handleCadastrarMotorista} className="space-y-5">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-2">Nome Completo</label>
+                        <input type="text" required value={nomeMotorista} onChange={e => setNomeMotorista(e.target.value)} className="w-full border-slate-200 rounded-xl shadow-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 p-3.5 border outline-none transition-all bg-white" placeholder="Ex: João Silva" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-2">E-mail</label>
+                        <input type="email" required value={emailMotorista} onChange={e => setEmailMotorista(e.target.value)} className="w-full border-slate-200 rounded-xl shadow-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 p-3.5 border outline-none transition-all bg-white" placeholder="joao@empresa.com" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-2">Nome de Utilizador</label>
+                        <input type="text" value={usuarioMotorista} onChange={e => setUsuarioMotorista(e.target.value)} className="w-full border-slate-200 rounded-xl shadow-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 p-3.5 border outline-none transition-all bg-white" placeholder="joao.silva" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-slate-700 mb-2">Senha Inicial</label>
+                        <input type="password" required value={senhaMotorista} onChange={e => setSenhaMotorista(e.target.value)} className="w-full border-slate-200 rounded-xl shadow-sm focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 p-3.5 border outline-none transition-all bg-white" placeholder="Mínimo 6 caracteres" minLength={6} />
+                      </div>
+                    </div>
+                    
+                    <div className="bg-blue-50 p-4 rounded-xl flex items-start space-x-3 border border-blue-100">
+                      <AlertCircle className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
+                      <p className="text-sm text-blue-800 leading-relaxed font-medium">
+                        <strong>Aviso:</strong> Este formulário cria a conta do motorista diretamente na <strong>Autenticação do Supabase</strong> para garantir o login, e guarda o seu perfil na tabela <code>motoristas_cadastrados</code>.
+                      </p>
+                    </div>
+
+                    <div className="pt-2">
+                      <button type="submit" disabled={isRegistering} className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-8 py-3.5 rounded-xl font-bold transition-all shadow-md hover:shadow-lg disabled:opacity-70 flex items-center justify-center">
+                        {isRegistering ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <CheckCircle className="w-5 h-5 mr-2" />}
+                        {isRegistering ? 'A Registar...' : 'Confirmar Cadastro'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
+                {/* Ações / Exportação */}
+                <div className="bg-teal-50 p-6 sm:p-8 rounded-3xl border border-teal-100 flex flex-col justify-center items-center text-center shadow-sm">
+                  <div className="bg-white p-4 rounded-full shadow-sm mb-4">
+                    <Download className="w-8 h-8 text-teal-600" />
+                  </div>
+                  <h4 className="font-bold text-slate-800 text-lg mb-2">Base de Motoristas</h4>
+                  <p className="text-sm text-slate-600 mb-6 font-medium">Exporte um ficheiro Excel contendo o nome e o e-mail de todos os motoristas registados na base de dados.</p>
+                  <button onClick={handleExportarMotoristas} className="w-full bg-teal-600 hover:bg-teal-700 text-white px-6 py-3.5 rounded-xl font-bold transition-all shadow-md hover:shadow-lg flex items-center justify-center">
+                    <FileSpreadsheet className="w-5 h-5 mr-2" />
+                    Exportar para Excel
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -978,12 +1129,12 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
         )}
 
         {/* Lista Rendereziada */}
-        {activeTab !== 'importar' && displayedTrips.length === 0 ? (
+        {['Em Análise', 'historico', 'todas'].includes(activeTab) && displayedTrips.length === 0 ? (
           <div className="p-20 text-center flex flex-col items-center">
             <div className="bg-slate-50 p-6 rounded-full mb-4"><CheckCircle className="h-10 w-10 text-slate-300" /></div>
             <p className="text-slate-500 text-lg font-medium">Nenhum registo pendente nesta vista.</p>
           </div>
-        ) : activeTab !== 'importar' && (
+        ) : ['Em Análise', 'historico', 'todas'].includes(activeTab) && (
           <ul className="divide-y divide-slate-100">
             {displayedTrips.map(item => {
               const isPendente = item.status === 'Em Análise';
