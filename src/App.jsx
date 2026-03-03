@@ -25,7 +25,9 @@ import {
   ChevronRight
 } from 'lucide-react';
 
-
+// ============================================================================
+// FUNÇÃO UTILITÁRIA PARA CÁLCULO DE PERÍODO (Dia 21 ao Dia 20)
+// ============================================================================
 const calcularPeriodoViagem = (dataStr) => {
   if (!dataStr) return '';
   try {
@@ -48,12 +50,14 @@ const calcularPeriodoViagem = (dataStr) => {
   }
 };
 
+// ============================================================================
+// CONFIGURAÇÃO REAL DO SUPABASE
+// ============================================================================
 const supabaseUrl = 'https://dwlcaplumgtgvbducrev.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3bGNhcGx1bWd0Z3ZiZHVjcmV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY4MzY5NDMsImV4cCI6MjA2MjQxMjk0M30.8oGZIvEIruVdOjuMT-oPtgOGLh_QgfR3XV07V3AOe40';
-let supabase = null; 
 
 export default function App() {
-  const [supabaseReady, setSupabaseReady] = useState(false);
+  const [supabaseClient, setSupabaseClient] = useState(null);
   const [currentUser, setCurrentUser] = useState(null); 
   const [viagens, setViagens] = useState([]);
   const [pendentes, setPendentes] = useState([]);
@@ -63,52 +67,61 @@ export default function App() {
   const [correcoesBloqueadas, setCorrecoesBloqueadas] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(false);
 
-  // Injeta Tailwind de forma segura para ambientes de pré-visualização
+  // Injeta Tailwind, Supabase e SheetJS (Excel) dinamicamente e armazena o cliente no Estado seguro do React
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      // Fontes
       if (!document.getElementById('google-fonts-inter')) {
         const fontLink = document.createElement('link');
         fontLink.id = 'google-fonts-inter';
         fontLink.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap';
         fontLink.rel = 'stylesheet';
         document.head.appendChild(fontLink);
-        
         const style = document.createElement('style');
         style.innerHTML = `body { font-family: 'Inter', sans-serif; }`;
         document.head.appendChild(style);
       }
+      // Tailwind CSS
       if (!document.getElementById('tailwind-script')) {
-        const tw = document.createElement('script');
-        tw.id = 'tailwind-script';
-        tw.src = 'https://cdn.tailwindcss.com';
-        document.head.appendChild(tw);
+        const twScript = document.createElement('script');
+        twScript.id = 'tailwind-script';
+        twScript.src = 'https://cdn.tailwindcss.com';
+        document.head.appendChild(twScript);
       }
-
+      // SheetJS (Excel .xlsx)
+      if (!document.getElementById('xlsx-script')) {
+        const xlsxScript = document.createElement('script');
+        xlsxScript.id = 'xlsx-script';
+        xlsxScript.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+        document.head.appendChild(xlsxScript);
+      }
+      
       // Supabase
       if (!document.getElementById('supabase-script')) {
         const supaScript = document.createElement('script');
         supaScript.id = 'supabase-script';
         supaScript.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
-        supaScript.onload = () => {
-          if (window.supabase && !supabase) {
-            supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
-            setSupabaseReady(true);
-          }
-        };
         document.head.appendChild(supaScript);
-      } else if (window.supabase && !supabase) {
-        supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
-        setSupabaseReady(true);
       }
+
+      // Intervalo de verificação para garantir que o script carregou completamente (Previne erros do HMR)
+      const checkInterval = setInterval(() => {
+        if (window.supabase) {
+          setSupabaseClient(window.supabase.createClient(supabaseUrl, supabaseKey));
+          clearInterval(checkInterval);
+        }
+      }, 100);
+
+      return () => clearInterval(checkInterval);
     }
   }, []);
 
   const fetchData = async () => {
-    if (!currentUser || !supabaseReady) return;
+    if (!currentUser || !supabaseClient) return;
     setIsLoadingData(true);
 
     try {
-      const { data: configData } = await supabase.from('configuracoes').select('*').eq('id', 1).single();
+      const { data: configData } = await supabaseClient.from('configuracoes').select('*').eq('id', 1).single();
       if (configData) {
         setPremiosLiberados(configData.premios_liberados);
         setCorrecoesBloqueadas(configData.correcoes_bloqueadas);
@@ -116,17 +129,17 @@ export default function App() {
 
       if (currentUser.admin) {
         const [resViagens, resPendentes] = await Promise.all([
-          supabase.from('minhas_viagens').select('*').order('data', { ascending: false }),
-          supabase.from('viagens_pendentes').select('*').order('data', { ascending: false })
+          supabaseClient.from('minhas_viagens').select('*').order('data', { ascending: false }),
+          supabaseClient.from('viagens_pendentes').select('*').order('data', { ascending: false })
         ]);
         if (resViagens.data) setViagens(resViagens.data);
         if (resPendentes.data) setPendentes(resPendentes.data);
       } else {
         const [resViagens, resPendentes, resResumo, resDiesel] = await Promise.all([
-          supabase.from('minhas_viagens').select('*').eq('email', currentUser.email).order('data', { ascending: false }),
-          supabase.from('viagens_pendentes').select('*').eq('email', currentUser.email).order('data', { ascending: false }),
-          supabase.from('resumo').select('*').eq('email', currentUser.email),
-          supabase.from('diesel').select('*').eq('email', currentUser.email)
+          supabaseClient.from('minhas_viagens').select('*').eq('email', currentUser.email).order('data', { ascending: false }),
+          supabaseClient.from('viagens_pendentes').select('*').eq('email', currentUser.email).order('data', { ascending: false }),
+          supabaseClient.from('resumo').select('*').eq('email', currentUser.email),
+          supabaseClient.from('diesel').select('*').eq('email', currentUser.email)
         ]);
         if (resViagens.data) setViagens(resViagens.data);
         if (resPendentes.data) setPendentes(resPendentes.data);
@@ -141,12 +154,12 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (supabaseReady) {
+    if (supabaseClient) {
       fetchData();
     }
-  }, [currentUser, supabaseReady]);
+  }, [currentUser, supabaseClient]);
 
-  if (!supabaseReady) {
+  if (!supabaseClient) {
     return (
       <div className="min-h-screen bg-[#F4F7F9] flex items-center justify-center">
         <div className="flex flex-col items-center space-y-4 text-blue-600">
@@ -158,7 +171,7 @@ export default function App() {
   }
 
   if (!currentUser) {
-    return <LoginScreen onLogin={setCurrentUser} supabase={supabase} />;
+    return <LoginScreen onLogin={setCurrentUser} supabase={supabaseClient} />;
   }
 
   return (
@@ -212,7 +225,7 @@ export default function App() {
             premiosLiberados={premiosLiberados} setPremiosLiberados={setPremiosLiberados} 
             correcoesBloqueadas={correcoesBloqueadas} setCorrecoesBloqueadas={setCorrecoesBloqueadas}
             refreshData={fetchData}
-            supabase={supabase}
+            supabase={supabaseClient}
           />
         ) : (
           <DriverDashboard 
@@ -223,7 +236,7 @@ export default function App() {
             premiosLiberados={premiosLiberados} 
             correcoesBloqueadas={correcoesBloqueadas}
             refreshData={fetchData}
-            supabase={supabase}
+            supabase={supabaseClient}
           />
         )}
       </main>
@@ -231,7 +244,9 @@ export default function App() {
   );
 }
 
-
+// ============================================================================
+// COMPONENTE: TELA DE LOGIN (Design Claro)
+// ============================================================================
 function LoginScreen({ onLogin, supabase }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -253,7 +268,7 @@ function LoginScreen({ onLogin, supabase }) {
         .eq('email', email)
         .single();
 
-      if (profileError || !profile) throw new Error('Perfil não encontrado.');
+      if (profileError || !profile) throw new Error('Perfil não encontrado na base de motoristas.');
 
       onLogin({ ...authData.user, ...profile });
     } catch (err) {
@@ -265,7 +280,6 @@ function LoginScreen({ onLogin, supabase }) {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4 relative overflow-hidden">
-      {/* Background Decorativo Claro */}
       <div className="absolute top-[-20%] left-[-10%] w-[70%] h-[70%] bg-blue-400/20 rounded-full blur-[120px] pointer-events-none"></div>
       <div className="absolute bottom-[-20%] right-[-10%] w-[70%] h-[70%] bg-teal-400/20 rounded-full blur-[120px] pointer-events-none"></div>
 
@@ -287,7 +301,7 @@ function LoginScreen({ onLogin, supabase }) {
           )}
 
           <div className="space-y-1.5">
-            <label className="block text-sm font-bold text-slate-700 ml-1">Login </label>
+            <label className="block text-sm font-bold text-slate-700 ml-1">Login</label>
             <input 
               type="email" 
               required
@@ -315,7 +329,7 @@ function LoginScreen({ onLogin, supabase }) {
             disabled={isLoggingIn}
             className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-700 hover:to-teal-600 text-white py-4 px-4 rounded-2xl transition-all font-bold text-lg shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transform hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none mt-2"
           >
-            {isLoggingIn ? <Loader2 className="w-6 h-6 animate-spin" /> : <span> Acessar Portal </span>}
+            {isLoggingIn ? <Loader2 className="w-6 h-6 animate-spin" /> : <span>Entrar</span>}
           </button>
         </form>
       </div>
@@ -323,26 +337,22 @@ function LoginScreen({ onLogin, supabase }) {
   );
 }
 
-
+// ============================================================================
+// COMPONENTE: PAINEL DO MOTORISTA
+// ============================================================================
 function DriverDashboard({ currentUser, viagens, setViagens, pendentes, setPendentes, resumos, diesel, premiosLiberados, correcoesBloqueadas, refreshData, supabase }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [filtroCompetencia, setFiltroCompetencia] = useState('');
   const [filtroPeriodo, setFiltroPeriodo] = useState('');
   const [filtroDiesel, setFiltroDiesel] = useState('');
 
-  // Prepara o Histórico mapeando o período exato (dia 21 a 20)
   const historicoComPeriodo = useMemo(() => {
     const confirmadas = viagens.filter(v => v.email === currentUser.email);
     const enviadas = pendentes.filter(p => p.email === currentUser.email && p.status !== 'Aprovado');
     const todos = [...confirmadas, ...enviadas].sort((a, b) => new Date(b.data) - new Date(a.data));
-    
-    return todos.map(item => ({
-      ...item,
-      _periodo: calcularPeriodoViagem(item.data)
-    }));
+    return todos.map(item => ({ ...item, _periodo: calcularPeriodoViagem(item.data) }));
   }, [viagens, pendentes, currentUser.email]);
 
-  // Lista de Meses disponíveis nos Resumos (Impo/Expo/Prémio)
   const competenciasResumoDisponiveis = useMemo(() => {
     const c1 = resumos.filter(r => r.email === currentUser.email).map(r => r.mes || r.competencia);
     return [...new Set(c1.filter(Boolean))].sort((a, b) => {
@@ -353,7 +363,6 @@ function DriverDashboard({ currentUser, viagens, setViagens, pendentes, setPende
     });
   }, [resumos, currentUser.email]);
 
-  // Lista de Meses disponíveis no Diesel
   const competenciasDieselDisponiveis = useMemo(() => {
     const c2 = diesel.filter(d => d.email === currentUser.email).map(d => d.competencia || d.mes);
     return [...new Set(c2.filter(Boolean))].sort((a, b) => {
@@ -364,7 +373,6 @@ function DriverDashboard({ currentUser, viagens, setViagens, pendentes, setPende
     });
   }, [diesel, currentUser.email]);
 
-  // Lista de Períodos (21 a 20) disponíveis no Histórico
   const periodosDisponiveis = useMemo(() => {
     const periodos = historicoComPeriodo.map(item => item._periodo).filter(Boolean);
     return [...new Set(periodos)].sort((a, b) => {
@@ -375,21 +383,18 @@ function DriverDashboard({ currentUser, viagens, setViagens, pendentes, setPende
     });
   }, [historicoComPeriodo]);
 
-  // Filtra as Estatísticas Gerais (Resumo)
   const meuResumo = useMemo(() => {
     const driverResumos = resumos.filter(r => r.email === currentUser.email);
     if (filtroCompetencia) return driverResumos.find(r => r.mes === filtroCompetencia || r.competencia === filtroCompetencia) || driverResumos[0] || {};
     return driverResumos[0] || {};
   }, [resumos, currentUser.email, filtroCompetencia]);
 
-  // Filtra a Estatística específica do Diesel
   const meuDiesel = useMemo(() => {
     const driverDiesel = diesel.filter(d => d.email === currentUser.email);
     if (filtroDiesel) return driverDiesel.find(d => d.competencia === filtroDiesel || d.mes === filtroDiesel) || driverDiesel[0] || {};
     return driverDiesel[0] || {};
   }, [diesel, currentUser.email, filtroDiesel]);
   
-  // Filtra as Viagens com base no Período selecionado
   const historicoFiltrado = useMemo(() => {
     if (!filtroPeriodo) return historicoComPeriodo;
     return historicoComPeriodo.filter(item => item._periodo === filtroPeriodo);
@@ -655,12 +660,15 @@ function StatCard({ icon, color, title, value, subtitle, extraContent }) {
   );
 }
 
-
+// ============================================================================
+// COMPONENTE: PAINEL DO ADMIN (Setor de Fidelidade)
+// ============================================================================
 function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosLiberados, setPremiosLiberados, correcoesBloqueadas, setCorrecoesBloqueadas, refreshData, supabase }) {
   const [activeTab, setActiveTab] = useState('Em Análise'); 
   const [actionState, setActionState] = useState({ id: null, type: null }); 
   const [actionMessage, setActionMessage] = useState('');
   const [viewImageUrl, setViewImageUrl] = useState(null);
+  const [isImporting, setIsImporting] = useState(false);
 
   const [sortBy, setSortBy] = useState('data_desc');
   const [filterMotorista, setFilterMotorista] = useState('');
@@ -691,7 +699,6 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
 
   let displayedTrips = activeTab === 'Em Análise' ? aguardandoSorted : activeTab === 'historico' ? historico : todasViagensFiltradas;
 
-  // Funções globais
   const handleToggleBloqueio = async () => {
     const novoValor = !correcoesBloqueadas;
     setCorrecoesBloqueadas(novoValor); 
@@ -709,21 +716,100 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
       alert("Por favor, insira o motivo da reprovação."); return;
     }
 
+    const novoStatus = actionState.type === 'approve' ? 'Aprovado' : 'Reprovado';
+    setPendentes(pendentes.map(p => p.id === item.id ? { ...p, status: novoStatus, resposta: actionMessage || null } : p));
+
     if (actionState.type === 'approve') {
-      await supabase.from('viagens_pendentes').update({ status: 'Aprovado', resposta: actionMessage || null }).eq('id', item.id);
-      
       const mesFormatado = calcularPeriodoViagem(item.data);
-      await supabase.from('minhas_viagens').insert([{
+      const novaViagem = {
         email: item.email, origem: item.origem, destino: item.destino, container: item.container,
         data: item.data, status: 'Aprovada', motorista: item.nome, mes: mesFormatado, tipo: item.tipo, resposta: actionMessage || null
-      }]);
+      };
+
+      setViagens([novaViagem, ...viagens]);
+      await supabase.from('viagens_pendentes').update({ status: 'Aprovado', resposta: actionMessage || null }).eq('id', item.id);
+      const { error } = await supabase.from('minhas_viagens').insert([novaViagem]);
+      if(error) console.error("Erro ao inserir viagem:", error);
     } else {
       await supabase.from('viagens_pendentes').update({ status: 'Reprovado', resposta: actionMessage }).eq('id', item.id);
     }
 
     setActionState({ id: null, type: null });
     setActionMessage('');
-    refreshData();
+    refreshData(); 
+  };
+
+  // Exportação em XLSX
+  const baixarModeloXLSX = (tipo) => {
+    if (!window.XLSX) return alert("Biblioteca Excel a carregar. Tente novamente em breves instantes.");
+    
+    let data = [];
+    let filename = "";
+
+    if (tipo === 'viagens') {
+      data = [
+        ["email", "origem", "destino", "container", "data", "motorista", "tipo", "mes", "status"],
+        ["motorista@premio.com", "Santos - Brasil", "CLIA", "MSKU1234567", "15/03/2026", "João Silva", "IMPO", "março", "pendente"]
+      ];
+      filename = "modelo_base_viagens.xlsx";
+    } else if (tipo === 'resumos') {
+      data = [
+        ["email", "motorista", "impo", "expo", "extra", "total_viagens", "premio"],
+        ["motorista@premio.com", "João Silva", 15, 10, 3, 28, "R$ 850,00"]
+      ];
+      filename = "modelo_base_resumos.xlsx";
+    } else if (tipo === 'diesel') {
+      data = [
+        ["email", "motorista", "competencia", "media"],
+        ["motorista@premio.com", "João Silva", "março", 2.85]
+      ];
+      filename = "modelo_base_diesel.xlsx";
+    }
+
+    const ws = window.XLSX.utils.aoa_to_sheet(data);
+    const wb = window.XLSX.utils.book_new();
+    window.XLSX.utils.book_append_sheet(wb, ws, "Dados");
+    window.XLSX.writeFile(wb, filename);
+  };
+
+  // Importação via XLSX
+  const handleImportXLSX = async (e, tipo) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!window.XLSX) return alert("A biblioteca Excel ainda está a carregar...");
+    setIsImporting(tipo);
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const data = evt.target.result;
+        const workbook = window.XLSX.read(data, { type: 'binary' });
+        const sheetName = workbook.SheetNames[0];
+        const json = window.XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { raw: false });
+
+        if (json.length === 0) throw new Error("A planilha está vazia.");
+
+        let table = '';
+        if (tipo === 'viagens') table = 'minhas_viagens';
+        else if (tipo === 'resumos') table = 'resumo';
+        else if (tipo === 'diesel') table = 'diesel';
+
+        const { error } = await supabase.from(table).upsert(json);
+        
+        if (error) throw error;
+        
+        alert(`Sucesso! Importados ${json.length} registos para a base de dados.`);
+        refreshData(); 
+      } catch (err) {
+        console.error(err);
+        alert("Erro ao importar planilha: " + err.message);
+      } finally {
+        setIsImporting(false);
+        e.target.value = null; // reseta o input
+      }
+    };
+    reader.readAsBinaryString(file);
   };
 
   const toggleSort = (type) => setSortBy(sortBy === `${type}_desc` ? `${type}_asc` : `${type}_desc`);
@@ -733,7 +819,7 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
       {/* Header Admin */}
       <div className="flex flex-col lg:flex-row lg:justify-between lg:items-end gap-6">
         <div>
-          <h1 className="text-3xl font-black text-slate-800 tracking-tight">Centro de Controlo</h1>
+          <h1 className="text-3xl font-black text-slate-800 tracking-tight">Painel de Controle</h1>
           <p className="text-slate-500 mt-1 font-medium text-lg">Faça a gestão das solicitações e operações da frota.</p>
         </div>
         
@@ -796,30 +882,54 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
 
       <div className="bg-white rounded-3xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100 overflow-hidden">
         
-        {/* Aba de Importação */}
+        {/* Aba de Importação Excel */}
         {activeTab === 'importar' && (
           <div className="p-10">
             <div className="max-w-4xl mx-auto space-y-10">
               <div className="text-center">
-                <h3 className="text-2xl font-black text-slate-800">Sincronização em Lote</h3>
-                <p className="text-slate-500 mt-2 font-medium">Faça o upload de ficheiros (.csv ou .xlsx) para atualizar os sistemas.</p>
+                <h3 className="text-2xl font-black text-slate-800">Sincronização Direta do Excel</h3>
+                <p className="text-slate-500 mt-2 font-medium">Baixe o modelo, preencha os dados e importe diretamente para o sistema.</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {[
-                  { title: 'Base de Viagens', sub: 'Histórico consolidado', icon: <Truck />, color: 'blue' },
-                  { title: 'Base de Resumos', sub: 'Impo, Expo e Prémios', icon: <Award />, color: 'teal' },
-                  { title: 'Base de Diesel', sub: 'Médias de consumo (km/L)', icon: <Droplet />, color: 'cyan' }
+                  { id: 'viagens', title: 'Base de Viagens', sub: 'Histórico consolidado', icon: <Truck />, 
+                    styles: { bg: 'bg-blue-50', text: 'text-blue-600', btnHover: 'hover:bg-blue-100', border: 'border-blue-200' } 
+                  },
+                  { id: 'resumos', title: 'Base de Resumos', sub: 'Impo, Expo e Prémios', icon: <Award />, 
+                    styles: { bg: 'bg-teal-50', text: 'text-teal-600', btnHover: 'hover:bg-teal-100', border: 'border-teal-200' } 
+                  },
+                  { id: 'diesel', title: 'Base de Diesel', sub: 'Médias de consumo (km/L)', icon: <Droplet />, 
+                    styles: { bg: 'bg-cyan-50', text: 'text-cyan-600', btnHover: 'hover:bg-cyan-100', border: 'border-cyan-200' } 
+                  }
                 ].map((card, i) => (
-                  <div key={i} className="border-2 border-dashed border-slate-200 rounded-3xl p-8 flex flex-col items-center text-center hover:border-blue-300 hover:bg-slate-50 transition-all cursor-pointer group">
+                  <div key={i} className="border-2 border-dashed border-slate-200 rounded-3xl p-6 flex flex-col items-center text-center hover:border-blue-300 hover:bg-slate-50 transition-all cursor-pointer group">
                     <div className={`bg-${card.color}-50 text-${card.color}-600 p-4 rounded-2xl mb-4 group-hover:scale-110 group-hover:shadow-lg transition-all duration-300`}>
                       {React.cloneElement(card.icon, { className: 'w-7 h-7' })}
                     </div>
                     <h4 className="font-bold text-slate-800 text-lg mb-1">{card.title}</h4>
-                    <p className="text-sm text-slate-400 mb-6 font-medium">{card.sub}</p>
-                    <button className={`text-sm font-bold text-${card.color}-700 bg-${card.color}-50/50 border border-${card.color}-100 px-5 py-2.5 rounded-xl group-hover:bg-${card.color}-100 transition-colors w-full`}>
-                      Selecionar
-                    </button>
+                    <p className="text-xs text-slate-400 mb-6 font-medium px-4">{card.sub}</p>
+                    
+                    <div className="flex flex-col gap-2 w-full mt-auto">
+                      <label className={`cursor-pointer text-sm font-bold ${card.styles.text} ${card.styles.bg} border ${card.styles.border} px-5 py-3 rounded-xl ${card.styles.btnHover} transition-colors w-full flex items-center justify-center shadow-sm`}>
+                        {isImporting === card.id ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+                        {isImporting === card.id ? 'A importar...' : 'Importar (.xlsx)'}
+                        <input 
+                          type="file" 
+                          accept=".xlsx, .xls" 
+                          className="hidden" 
+                          onChange={(e) => handleImportXLSX(e, card.id)} 
+                          disabled={!!isImporting} 
+                        />
+                      </label>
+                      <button 
+                        onClick={() => baixarModeloXLSX(card.id)}
+                        className="text-xs font-semibold text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 px-5 py-2.5 rounded-xl transition-colors w-full flex items-center justify-center shadow-sm"
+                      >
+                        <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" />
+                        Baixar Modelo
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -827,7 +937,9 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
               <div className="bg-blue-50 p-5 rounded-2xl flex items-start space-x-3 border border-blue-100">
                 <AlertCircle className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
                 <p className="text-sm text-blue-800 leading-relaxed font-medium">
-                  <strong>Nota de Integração:</strong> Ao selecionar um ficheiro, utilize a função de upload do Supabase ou integre o `papaparse` para leitura em memória antes do upsert.
+                  <strong>Instruções de Importação Direta:</strong><br/>
+                  1. Utilize sempre o "Modelo" para garantir que os títulos das colunas estão corretos.<br/>
+                  2. Preencha e salve a sua planilha Excel e clique em "Importar". O sistema injeta os dados de forma massiva.<br/>
                 </p>
               </div>
             </div>
@@ -1023,7 +1135,9 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
   );
 }
 
-
+// ============================================================================
+// COMPONENTE AUXILIAR: MODAL DE ADIÇÃO
+// ============================================================================
 function AddTripModal({ currentUser, onClose, onSave, supabase }) {
   const [formData, setFormData] = useState({
     data: '', origem: '', destino: '', container: '', tipo: 'Importação', mensagem: ''
@@ -1141,7 +1255,9 @@ function AddTripModal({ currentUser, onClose, onSave, supabase }) {
   );
 }
 
-
+// ============================================================================
+// COMPONENTE AUXILIAR: BADGE DE STATUS
+// ============================================================================
 function StatusBadge({ status }) {
   const styles = {
     confirmada: 'bg-emerald-100 text-emerald-700 border-emerald-200',
@@ -1163,8 +1279,8 @@ function StatusBadge({ status }) {
 
   const labels = {
     confirmada: 'Confirmada',
-    Aprovada: 'Aprovada (RH)',
-    Aprovado: 'Aprovada (RH)',
+    Aprovada: 'Aprovada (Fidelidade)',
+    Aprovado: 'Aprovada (Fidelidade)',
     Pendente: 'À Conferir',
     'Em Análise': 'Em Análise',
     Reprovado: 'Reprovada'
