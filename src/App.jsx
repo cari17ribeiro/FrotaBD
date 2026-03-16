@@ -107,7 +107,7 @@ export default function App() {
         document.head.appendChild(supaScript);
       }
 
-      // Intervalo de verificação para garantir que o script carregou completamente (Previne erros do HMR)
+      // Intervalo de verificação para garantir que o script carregou completamente
       const checkInterval = setInterval(() => {
         if (window.supabase) {
           setSupabaseClient(window.supabase.createClient(supabaseUrl, supabaseKey));
@@ -304,7 +304,7 @@ function LoginScreen({ onLogin, supabase }) {
           )}
 
           <div className="space-y-1.5">
-            <label className="block text-sm font-bold text-slate-700 ml-1">Login</label>
+            <label className="block text-sm font-bold text-slate-700 ml-1">E-mail Corporativo</label>
             <input 
               type="email" 
               required
@@ -316,7 +316,7 @@ function LoginScreen({ onLogin, supabase }) {
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-sm font-bold text-slate-700 ml-1">Senha</label>
+            <label className="block text-sm font-bold text-slate-700 ml-1">Palavra-passe</label>
             <input 
               type="password" 
               required
@@ -351,7 +351,8 @@ function DriverDashboard({ currentUser, viagens, setViagens, pendentes, setPende
 
   const historicoComPeriodo = useMemo(() => {
     const confirmadas = viagens.filter(v => v.email === currentUser.email);
-    const enviadas = pendentes.filter(p => p.email === currentUser.email && p.status !== 'Aprovado');
+    // Exclui as aprovadas daqui, pois elas passam para as confirmadas
+    const enviadas = pendentes.filter(p => p.email === currentUser.email && p.status !== 'Aprovada' && p.status !== 'Aprovado');
     const todos = [...confirmadas, ...enviadas].sort((a, b) => new Date(b.data) - new Date(a.data));
     return todos.map(item => ({ ...item, _periodo: calcularPeriodoViagem(item.data) }));
   }, [viagens, pendentes, currentUser.email]);
@@ -677,13 +678,14 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
   const [nomeMotorista, setNomeMotorista] = useState('');
   const [emailMotorista, setEmailMotorista] = useState('');
   const [usuarioMotorista, setUsuarioMotorista] = useState('');
-  const [senhaMotorista, setSenhaMotorista] = useState(''); // Novo campo de senha
+  const [senhaMotorista, setSenhaMotorista] = useState(''); 
   const [isRegistering, setIsRegistering] = useState(false);
 
   const [sortBy, setSortBy] = useState('data_desc');
   const [filterMotorista, setFilterMotorista] = useState('');
   const [filterMes, setFilterMes] = useState('');
 
+  // Considera aguardando como tudo o que ainda está em analise
   const aguardando = pendentes.filter(p => p.status === 'Em Análise');
   const historico = pendentes.filter(p => p.status !== 'Em Análise');
 
@@ -726,27 +728,48 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
       alert("Por favor, insira o motivo da reprovação."); return;
     }
 
-    const novoStatus = actionState.type === 'approve' ? 'Aprovado' : 'Reprovado';
-    setPendentes(pendentes.map(p => p.id === item.id ? { ...p, status: novoStatus, resposta: actionMessage || null } : p));
+    // Define 'Aprovada' para corresponder aos checks que fizemos em DriverDashboard
+    const novoStatus = actionState.type === 'approve' ? 'Aprovada' : 'Reprovado';
+    const msg = actionMessage.trim() || null;
+    
+    // Atualização Otimista
+    setPendentes(pendentes.map(p => p.id === item.id ? { ...p, status: novoStatus, resposta: msg } : p));
 
-    if (actionState.type === 'approve') {
-      const mesFormatado = calcularPeriodoViagem(item.data);
-      const novaViagem = {
-        email: item.email, origem: item.origem, destino: item.destino, container: item.container,
-        data: item.data, status: 'Aprovada', motorista: item.nome, mes: mesFormatado, tipo: item.tipo, resposta: actionMessage || null
-      };
+    try {
+      if (actionState.type === 'approve') {
+        const mesFormatado = calcularPeriodoViagem(item.data);
+        const novaViagem = {
+          email: item.email, origem: item.origem, destino: item.destino, container: item.container,
+          data: item.data, status: 'Aprovada', motorista: item.nome, mes: mesFormatado, tipo: item.tipo, resposta: msg
+        };
 
-      setViagens([novaViagem, ...viagens]);
-      await supabase.from('viagens_pendentes').update({ status: 'Aprovado', resposta: actionMessage || null }).eq('id', item.id);
-      const { error } = await supabase.from('minhas_viagens').insert([novaViagem]);
-      if(error) console.error("Erro ao inserir viagem:", error);
-    } else {
-      await supabase.from('viagens_pendentes').update({ status: 'Reprovado', resposta: actionMessage }).eq('id', item.id);
+        // 1. Atualiza o status em viagens_pendentes
+        const { error: err1 } = await supabase.from('viagens_pendentes')
+          .update({ status: novoStatus, resposta: msg })
+          .eq('id', item.id);
+        if (err1) throw new Error("Falha a atualizar pendência (DB): " + err1.message);
+
+        // 2. Insere na tabela final de minhas_viagens consolidada
+        const { error: err2 } = await supabase.from('minhas_viagens').insert([novaViagem]);
+        // Se err2 acontecer, geralmente é porque a tabela `minhas_viagens` pode não possuir a coluna `resposta`. 
+        if (err2) throw new Error("Aviso de Banco de Dados na inserção consolidada: " + err2.message);
+
+        setViagens([novaViagem, ...viagens]);
+      } else {
+        const { error: err3 } = await supabase.from('viagens_pendentes')
+          .update({ status: novoStatus, resposta: msg })
+          .eq('id', item.id);
+        if (err3) throw new Error("Falha ao reprovar (DB): " + err3.message);
+      }
+
+      setActionState({ id: null, type: null });
+      setActionMessage('');
+      refreshData(); 
+    } catch (error) {
+      alert(error.message);
+      console.error(error);
+      refreshData(); // Reverte a atualização otimista se falhar
     }
-
-    setActionState({ id: null, type: null });
-    setActionMessage('');
-    refreshData(); 
   };
 
   // Funções de Cadastro e Exportação de Motoristas
@@ -755,12 +778,10 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
     setIsRegistering(true);
     
     try {
-      // 1. Cria um cliente secundário para não sobrescrever a sessão do Admin atual
       const tempClient = window.supabase.createClient(supabaseUrl, supabaseKey, {
         auth: { persistSession: false }
       });
 
-      // 2. Insere na Autenticação do Supabase
       const { data: authData, error: authError } = await tempClient.auth.signUp({
         email: emailMotorista,
         password: senhaMotorista,
@@ -768,10 +789,8 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
 
       if (authError) throw new Error('Erro ao criar credenciais de acesso: ' + authError.message);
       
-      // Captura o ID real gerado pelo Auth
       const authUserId = authData?.user?.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'id-' + Date.now());
 
-      // 3. Insere na Tabela do Banco de Dados vinculando o ID
       const { error: dbError } = await supabase.from('motoristas_cadastrados').insert([{
         id: authUserId,
         motorista: nomeMotorista,
@@ -824,19 +843,19 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
     if (tipo === 'viagens') {
       data = [
         ["email", "origem", "destino", "container", "data", "motorista", "tipo", "mes", "status"],
-        ["motorista@premio.com", "Santos-Brasil", "CLIA", "MSKU1234567", "15/03/2026", "João Silva", "IMPO", "março", "pendente"]
+        ["motorista@premio.com", "Santos-Brasil", "CLIA", "MSKU1234567", "2026-03-15", "João Silva", "Importação", "03/2026", "confirmada"]
       ];
       filename = "modelo_base_viagens.xlsx";
     } else if (tipo === 'resumos') {
       data = [
-        ["email", "motorista", "impo", "expo", "extra", "total_viagens", "premio"],
-        ["motorista@premio.com", "João Silva", 15, 10, 3, 28, "R$ 850,00"]
+        ["email", "motorista", "competencia", "impo", "expo", "extra", "total_viagens", "premio"],
+        ["motorista@premio.com", "João Silva", "03/2026", 15, 10, 3, 28, "R$ 850,00"]
       ];
       filename = "modelo_base_resumos.xlsx";
     } else if (tipo === 'diesel') {
       data = [
         ["email", "motorista", "competencia", "media"],
-        ["motorista@premio.com", "João Silva", "março", 2.85]
+        ["motorista@premio.com", "João Silva", "03/2026", 2.85]
       ];
       filename = "modelo_base_diesel.xlsx";
     }
@@ -1013,14 +1032,7 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
               <div className="bg-blue-50 p-5 rounded-2xl flex items-start space-x-3 border border-blue-100">
                 <AlertCircle className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
                 <p className="text-sm text-blue-800 leading-relaxed font-medium">
-                  <strong>Intruções</strong><br /><br />
-                  - Mês: informar sempre em letras minúsculas<br />
-                 &nbsp;&nbsp;Exemplo: março<br /><br />
-                 - Operação: informar sempre em letras maiúsculas<br />
-                 &nbsp;&nbsp;Valores permitidos: IMPO, EXPO ou EXTRA<br /><br />
-                 - Status: preencher sempre como <strong>pendente</strong><br /><br />
-                 - E-mail: deve ser o mesmo e-mail cadastrado na base de motoristas<br /><br />
-                 ⚠️ Registros fora desse padrão podem falhar na importação.
+                  <strong>Nota de Integração:</strong> Ao selecionar um ficheiro, utilize a função de upload do Supabase ou integre o `papaparse` para leitura em memória antes do upsert.
                 </p>
               </div>
             </div>
@@ -1098,7 +1110,7 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
         )}
 
         {/* Ferramentas de Tabela */}
-        {activeTab === 'Em Análise' && displayedTrips.length > 0 && (
+        {['Em Análise', 'historico', 'todas'].includes(activeTab) && displayedTrips.length > 0 && (
           <div className="flex items-center space-x-3 p-5 bg-slate-50/50 border-b border-slate-100">
             <span className="text-sm font-bold text-slate-500 uppercase tracking-wider flex items-center mr-2">
                Ordenar:
@@ -1430,8 +1442,8 @@ function StatusBadge({ status }) {
 
   const labels = {
     confirmada: 'Confirmada',
-    Aprovada: 'Aprovada (Fidelidade)',
-    Aprovado: 'Aprovada (Fidelidade)',
+    Aprovada: 'Fidelidade',
+    Aprovado: 'Fidelidade',
     Pendente: 'À Conferir',
     'Em Análise': 'Em Análise',
     Reprovado: 'Reprovada'
