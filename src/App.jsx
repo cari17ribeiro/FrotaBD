@@ -304,7 +304,7 @@ function LoginScreen({ onLogin, supabase }) {
           )}
 
           <div className="space-y-1.5">
-            <label className="block text-sm font-bold text-slate-700 ml-1">E-mail Corporativo</label>
+            <label className="block text-sm font-bold text-slate-700 ml-1">Login </label>
             <input 
               type="email" 
               required
@@ -316,7 +316,7 @@ function LoginScreen({ onLogin, supabase }) {
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-sm font-bold text-slate-700 ml-1">Palavra-passe</label>
+            <label className="block text-sm font-bold text-slate-700 ml-1">Senha </label>
             <input 
               type="password" 
               required
@@ -332,7 +332,7 @@ function LoginScreen({ onLogin, supabase }) {
             disabled={isLoggingIn}
             className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-700 hover:to-teal-600 text-white py-4 px-4 rounded-2xl transition-all font-bold text-lg shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transform hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none mt-2"
           >
-            {isLoggingIn ? <Loader2 className="w-6 h-6 animate-spin" /> : <span>Aceder ao Painel</span>}
+            {isLoggingIn ? <Loader2 className="w-6 h-6 animate-spin" /> : <span>Entrar</span>}
           </button>
         </form>
       </div>
