@@ -728,47 +728,52 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
       alert("Por favor, insira o motivo da reprovação."); return;
     }
 
-    // Define 'Aprovada' para corresponder aos checks que fizemos em DriverDashboard
-    const novoStatus = actionState.type === 'approve' ? 'Aprovada' : 'Reprovado';
+    const novoStatus = actionState.type === 'approve' ? 'Aprovado' : 'Reprovado';
     const msg = actionMessage.trim() || null;
     
     // Atualização Otimista
     setPendentes(pendentes.map(p => p.id === item.id ? { ...p, status: novoStatus, resposta: msg } : p));
 
     try {
+      // 1. Atualiza a tabela de pendentes (Aplica-se igual na aprovação e reprovação)
+      const { error: errUpdate } = await supabase.from('viagens_pendentes')
+        .update({ status: novoStatus, resposta: msg })
+        .eq('id', item.id);
+        
+      if (errUpdate) throw new Error("Falha ao atualizar pendência: " + errUpdate.message);
+
+      // 2. Se for aprovação, insere de forma independente na tabela consolidada "minhas_viagens"
       if (actionState.type === 'approve') {
         const mesFormatado = calcularPeriodoViagem(item.data);
         const novaViagem = {
-          email: item.email, origem: item.origem, destino: item.destino, container: item.container,
-          data: item.data, status: 'Aprovada', motorista: item.nome, mes: mesFormatado, tipo: item.tipo, resposta: msg
+          email: item.email, 
+          origem: item.origem, 
+          destino: item.destino, 
+          container: item.container,
+          data: item.data, 
+          status: 'Aprovada', 
+          motorista: item.nome || item.motorista, 
+          mes: mesFormatado, 
+          tipo: item.tipo
+          // Removemos "resposta" para garantir a inserção na base de dados final caso a coluna não exista
         };
 
-        // 1. Atualiza o status em viagens_pendentes
-        const { error: err1 } = await supabase.from('viagens_pendentes')
-          .update({ status: novoStatus, resposta: msg })
-          .eq('id', item.id);
-        if (err1) throw new Error("Falha a atualizar pendência (DB): " + err1.message);
-
-        // 2. Insere na tabela final de minhas_viagens consolidada
-        const { error: err2 } = await supabase.from('minhas_viagens').insert([novaViagem]);
-        // Se err2 acontecer, geralmente é porque a tabela `minhas_viagens` pode não possuir a coluna `resposta`. 
-        if (err2) throw new Error("Aviso de Banco de Dados na inserção consolidada: " + err2.message);
-
-        setViagens([novaViagem, ...viagens]);
-      } else {
-        const { error: err3 } = await supabase.from('viagens_pendentes')
-          .update({ status: novoStatus, resposta: msg })
-          .eq('id', item.id);
-        if (err3) throw new Error("Falha ao reprovar (DB): " + err3.message);
+        const { error: errInsert } = await supabase.from('minhas_viagens').insert([novaViagem]);
+        
+        if (!errInsert) {
+          setViagens([novaViagem, ...viagens]);
+        } else {
+          console.warn("Aviso: A viagem foi aprovada nas pendências, mas ocorreu um erro ao guardá-la no histórico final.", errInsert);
+        }
       }
 
       setActionState({ id: null, type: null });
       setActionMessage('');
       refreshData(); 
     } catch (error) {
-      alert(error.message);
+      alert("Erro ao processar ação: " + error.message);
       console.error(error);
-      refreshData(); // Reverte a atualização otimista se falhar
+      refreshData(); // Reverte a atualização otimista se falhar a base de dados
     }
   };
 
@@ -1442,8 +1447,8 @@ function StatusBadge({ status }) {
 
   const labels = {
     confirmada: 'Confirmada',
-    Aprovada: 'Fidelidade',
-    Aprovado: 'Fidelidade',
+    Aprovada: 'Aprovada (RH)',
+    Aprovado: 'Aprovada (RH)',
     Pendente: 'À Conferir',
     'Em Análise': 'Em Análise',
     Reprovado: 'Reprovada'
