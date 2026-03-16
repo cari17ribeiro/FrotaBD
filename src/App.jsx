@@ -304,7 +304,7 @@ function LoginScreen({ onLogin, supabase }) {
           )}
 
           <div className="space-y-1.5">
-            <label className="block text-sm font-bold text-slate-700 ml-1">Login </label>
+            <label className="block text-sm font-bold text-slate-700 ml-1">Login</label>
             <input 
               type="email" 
               required
@@ -316,7 +316,7 @@ function LoginScreen({ onLogin, supabase }) {
           </div>
 
           <div className="space-y-1.5">
-            <label className="block text-sm font-bold text-slate-700 ml-1">Senha </label>
+            <label className="block text-sm font-bold text-slate-700 ml-1">Senha</label>
             <input 
               type="password" 
               required
@@ -351,8 +351,8 @@ function DriverDashboard({ currentUser, viagens, setViagens, pendentes, setPende
 
   const historicoComPeriodo = useMemo(() => {
     const confirmadas = viagens.filter(v => v.email === currentUser.email);
-    // Exclui as aprovadas daqui, pois elas passam para as confirmadas
-    const enviadas = pendentes.filter(p => p.email === currentUser.email && p.status !== 'Aprovada' && p.status !== 'Aprovado');
+    // Exibe todas as enviadas (Em Análise, Aprovado, Reprovado) sem filtrar as aprovadas fora
+    const enviadas = pendentes.filter(p => p.email === currentUser.email);
     const todos = [...confirmadas, ...enviadas].sort((a, b) => new Date(b.data) - new Date(a.data));
     return todos.map(item => ({ ...item, _periodo: calcularPeriodoViagem(item.data) }));
   }, [viagens, pendentes, currentUser.email]);
@@ -735,37 +735,12 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
     setPendentes(pendentes.map(p => p.id === item.id ? { ...p, status: novoStatus, resposta: msg } : p));
 
     try {
-      // 1. Atualiza a tabela de pendentes (Aplica-se igual na aprovação e reprovação)
+      // Atualiza a tabela de pendentes (Aplica-se exatamente igual na aprovação e reprovação)
       const { error: errUpdate } = await supabase.from('viagens_pendentes')
         .update({ status: novoStatus, resposta: msg })
         .eq('id', item.id);
         
       if (errUpdate) throw new Error("Falha ao atualizar pendência: " + errUpdate.message);
-
-      // 2. Se for aprovação, insere de forma independente na tabela consolidada "minhas_viagens"
-      if (actionState.type === 'approve') {
-        const mesFormatado = calcularPeriodoViagem(item.data);
-        const novaViagem = {
-          email: item.email, 
-          origem: item.origem, 
-          destino: item.destino, 
-          container: item.container,
-          data: item.data, 
-          status: 'Aprovada', 
-          motorista: item.nome || item.motorista, 
-          mes: mesFormatado, 
-          tipo: item.tipo
-          // Removemos "resposta" para garantir a inserção na base de dados final caso a coluna não exista
-        };
-
-        const { error: errInsert } = await supabase.from('minhas_viagens').insert([novaViagem]);
-        
-        if (!errInsert) {
-          setViagens([novaViagem, ...viagens]);
-        } else {
-          console.warn("Aviso: A viagem foi aprovada nas pendências, mas ocorreu um erro ao guardá-la no histórico final.", errInsert);
-        }
-      }
 
       setActionState({ id: null, type: null });
       setActionMessage('');
