@@ -70,7 +70,7 @@ export default function App() {
   const [correcoesBloqueadas, setCorrecoesBloqueadas] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(false);
 
-  // Injeta Tailwind, Supabase e SheetJS (Excel) dinamicamente e armazena o cliente no Estado seguro do React
+  // Injeta Tailwind, Supabase e SheetJS (Excel) dinamicamente
   useEffect(() => {
     if (typeof window !== 'undefined') {
       // Fontes
@@ -107,7 +107,7 @@ export default function App() {
         document.head.appendChild(supaScript);
       }
 
-      // Intervalo de verificação para garantir que o script carregou completamente
+      // Intervalo de verificação
       const checkInterval = setInterval(() => {
         if (window.supabase) {
           setSupabaseClient(window.supabase.createClient(supabaseUrl, supabaseKey));
@@ -332,7 +332,7 @@ function LoginScreen({ onLogin, supabase }) {
             disabled={isLoggingIn}
             className="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-blue-600 to-teal-500 hover:from-blue-700 hover:to-teal-600 text-white py-4 px-4 rounded-2xl transition-all font-bold text-lg shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transform hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none mt-2"
           >
-            {isLoggingIn ? <Loader2 className="w-6 h-6 animate-spin" /> : <span>Entrar</span>}
+            {isLoggingIn ? <Loader2 className="w-6 h-6 animate-spin" /> : <span>Entrar </span>}
           </button>
         </form>
       </div>
@@ -348,10 +348,11 @@ function DriverDashboard({ currentUser, viagens, setViagens, pendentes, setPende
   const [filtroCompetencia, setFiltroCompetencia] = useState('');
   const [filtroPeriodo, setFiltroPeriodo] = useState('');
   const [filtroDiesel, setFiltroDiesel] = useState('');
+  const [filtroTipo, setFiltroTipo] = useState(''); // Filtro de Tipo
 
   const historicoComPeriodo = useMemo(() => {
     const confirmadas = viagens.filter(v => v.email === currentUser.email);
-    // Exibe todas as enviadas (Em Análise, Aprovado, Reprovado) sem filtrar as aprovadas fora
+    // Exibe todas as pendências (mesmo as que tenham o status Aprovado) sem filtrar fora
     const enviadas = pendentes.filter(p => p.email === currentUser.email);
     const todos = [...confirmadas, ...enviadas].sort((a, b) => new Date(b.data) - new Date(a.data));
     return todos.map(item => ({ ...item, _periodo: calcularPeriodoViagem(item.data) }));
@@ -387,6 +388,11 @@ function DriverDashboard({ currentUser, viagens, setViagens, pendentes, setPende
     });
   }, [historicoComPeriodo]);
 
+  const tiposDisponiveis = useMemo(() => {
+    const tipos = historicoComPeriodo.map(item => item.tipo).filter(Boolean);
+    return [...new Set(tipos)].sort();
+  }, [historicoComPeriodo]);
+
   const meuResumo = useMemo(() => {
     const driverResumos = resumos.filter(r => r.email === currentUser.email);
     if (filtroCompetencia) return driverResumos.find(r => r.mes === filtroCompetencia || r.competencia === filtroCompetencia) || driverResumos[0] || {};
@@ -400,9 +406,11 @@ function DriverDashboard({ currentUser, viagens, setViagens, pendentes, setPende
   }, [diesel, currentUser.email, filtroDiesel]);
   
   const historicoFiltrado = useMemo(() => {
-    if (!filtroPeriodo) return historicoComPeriodo;
-    return historicoComPeriodo.filter(item => item._periodo === filtroPeriodo);
-  }, [historicoComPeriodo, filtroPeriodo]);
+    let filtrado = historicoComPeriodo;
+    if (filtroPeriodo) filtrado = filtrado.filter(item => item._periodo === filtroPeriodo);
+    if (filtroTipo) filtrado = filtrado.filter(item => item.tipo === filtroTipo);
+    return filtrado;
+  }, [historicoComPeriodo, filtroPeriodo, filtroTipo]);
 
   const handleAddTrip = async (newTripData) => {
     const novaPendente = {
@@ -532,26 +540,43 @@ function DriverDashboard({ currentUser, viagens, setViagens, pendentes, setPende
             <span className="text-sm font-semibold text-slate-400">{historicoFiltrado.length} registos encontrados</span>
           </div>
           
-          {/* Filtro Específico para Viagens (Período 21 a 20) */}
-          <div className="flex items-center space-x-2 bg-white px-3 py-2 rounded-xl shadow-sm border border-slate-200/60 w-full sm:w-auto">
-            <Filter className="w-4 h-4 text-blue-500 flex-shrink-0" />
-            <select 
-              value={filtroPeriodo} 
-              onChange={e => setFiltroPeriodo(e.target.value)} 
-              className="bg-transparent text-sm font-bold text-slate-700 outline-none cursor-pointer w-full"
-            >
-              <option value="">Filtro de Período (21 a 20)</option>
-              {periodosDisponiveis.map(m => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
+          <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+            {/* Filtro Específico para Viagens (Período 21 a 20) */}
+            <div className="flex items-center space-x-2 bg-white px-3 py-2 rounded-xl shadow-sm border border-slate-200/60 w-full sm:w-auto">
+              <Filter className="w-4 h-4 text-blue-500 flex-shrink-0" />
+              <select 
+                value={filtroPeriodo} 
+                onChange={e => setFiltroPeriodo(e.target.value)} 
+                className="bg-transparent text-sm font-bold text-slate-700 outline-none cursor-pointer w-full"
+              >
+                <option value="">Período (Todos)</option>
+                {periodosDisponiveis.map(m => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Filtro por Tipo de Viagem */}
+            <div className="flex items-center space-x-2 bg-white px-3 py-2 rounded-xl shadow-sm border border-slate-200/60 w-full sm:w-auto">
+              <Filter className="w-4 h-4 text-indigo-500 flex-shrink-0" />
+              <select 
+                value={filtroTipo} 
+                onChange={e => setFiltroTipo(e.target.value)} 
+                className="bg-transparent text-sm font-bold text-slate-700 outline-none cursor-pointer w-full"
+              >
+                <option value="">Tipo (Todos)</option>
+                {tiposDisponiveis.map(t => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
         
         {historicoFiltrado.length === 0 ? (
           <div className="p-16 text-center flex flex-col items-center">
             <div className="bg-blue-50 p-6 rounded-full mb-4"><Truck className="h-10 w-10 text-blue-300" /></div>
-            <p className="text-slate-500 font-medium text-lg">Sem registos no período selecionado.</p>
+            <p className="text-slate-500 font-medium text-lg">Nenhum registo encontrado com estes filtros.</p>
           </div>
         ) : (
           <ul className="divide-y divide-slate-100">
@@ -684,8 +709,8 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
   const [sortBy, setSortBy] = useState('data_desc');
   const [filterMotorista, setFilterMotorista] = useState('');
   const [filterMes, setFilterMes] = useState('');
+  const [filterTipo, setFilterTipo] = useState('');
 
-  // Considera aguardando como tudo o que ainda está em analise
   const aguardando = pendentes.filter(p => p.status === 'Em Análise');
   const historico = pendentes.filter(p => p.status !== 'Em Análise');
 
@@ -700,14 +725,16 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
 
   const uniqueMotoristas = useMemo(() => [...new Set(viagens.map(v => v.motorista))], [viagens]);
   const uniqueMeses = useMemo(() => [...new Set(viagens.map(v => v.mes))], [viagens]);
+  const uniqueTipos = useMemo(() => [...new Set(viagens.map(v => v.tipo).filter(Boolean))], [viagens]);
 
   const todasViagensFiltradas = useMemo(() => {
     return viagens.filter(v => {
       const matchMotorista = filterMotorista ? v.motorista === filterMotorista : true;
       const matchMes = filterMes ? v.mes === filterMes : true;
-      return matchMotorista && matchMes;
+      const matchTipo = filterTipo ? v.tipo === filterTipo : true;
+      return matchMotorista && matchMes && matchTipo;
     }).sort((a, b) => new Date(b.data) - new Date(a.data));
-  }, [viagens, filterMotorista, filterMes]);
+  }, [viagens, filterMotorista, filterMes, filterTipo]);
 
   let displayedTrips = activeTab === 'Em Análise' ? aguardandoSorted : activeTab === 'historico' ? historico : todasViagensFiltradas;
 
@@ -735,7 +762,7 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
     setPendentes(pendentes.map(p => p.id === item.id ? { ...p, status: novoStatus, resposta: msg } : p));
 
     try {
-      // Atualiza a tabela de pendentes (Aplica-se exatamente igual na aprovação e reprovação)
+      // Atualiza a tabela de pendentes (Aplica-se exatamente igual na aprovação e reprovação para evitar bloqueios)
       const { error: errUpdate } = await supabase.from('viagens_pendentes')
         .update({ status: novoStatus, resposta: msg })
         .eq('id', item.id);
@@ -1117,6 +1144,10 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
               <option value="">Todos os Meses</option>
               {uniqueMeses.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
+            <select value={filterTipo} onChange={e => setFilterTipo(e.target.value)} className="text-sm font-semibold border border-slate-200 rounded-xl p-2.5 outline-none focus:ring-2 focus:ring-indigo-500/20 bg-white">
+              <option value="">Todos os Tipos</option>
+              {uniqueTipos.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
           </div>
         )}
 
@@ -1438,3 +1469,5 @@ function StatusBadge({ status }) {
     </span>
   );
 }
+
+
