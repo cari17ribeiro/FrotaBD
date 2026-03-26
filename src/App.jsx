@@ -1453,8 +1453,8 @@ function StatusBadge({ status }) {
 
   const labels = {
     confirmada: 'Confirmada',
-    Aprovada: 'Aprovada (RH)',
-    Aprovado: 'Aprovada (RH)',
+    Aprovada: 'Aprovada ',
+    Aprovado: 'Aprovada ',
     Pendente: 'À Conferir',
     'Em Análise': 'Em Análise',
     Reprovado: 'Reprovada'
