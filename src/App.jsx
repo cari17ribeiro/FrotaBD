@@ -850,7 +850,7 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
     if (tipo === 'viagens') {
       data = [
         ["email", "origem", "destino", "container", "data", "motorista", "tipo", "mes", "status"],
-        ["motorista@premio.com", "Santos-Brasil", "CLIA", "MSKU1234567", "2026-03-15", "João Silva", "Importação", "03/2026", "confirmada"]
+        ["motorista@premio.com", "Santos-Brasil", "CLIA", "MSKU1234567", "15/03/2026", "João Silva", "Importação", "março", "pendente"]
       ];
       filename = "modelo_base_viagens.xlsx";
     } else if (tipo === 'resumos') {
