@@ -619,7 +619,7 @@ function DriverDashboard({ currentUser, viagens, setViagens, pendentes, setPende
                         <div className="text-sm text-slate-500 flex flex-wrap gap-x-6 gap-y-2 font-medium">
                           <span className="flex items-center bg-slate-50 px-2.5 py-1 rounded-md border border-slate-100" title="Período de Faturação">
                             <Clock className="w-3.5 h-3.5 mr-1.5 text-blue-400"/> 
-                            {new Date(item.data).toLocaleDateString('pt-BR')} <span className="text-slate-400 ml-1">({item._periodo})</span>
+                             {new Date(item.data).toLocaleDateString('pt-BR', { timeZone: 'UTC' })} <span className="text-slate-400 ml-1">({item._periodo})</span>
                           </span>
                           <span className="flex items-center bg-slate-50 px-2.5 py-1 rounded-md border border-slate-100"><Package className="w-3.5 h-3.5 mr-1.5 text-teal-400"/> {item.container || 'S/ Contentor'}</span>
                           <span className="flex items-center bg-slate-50 px-2.5 py-1 rounded-md border border-slate-100"><FileText className="w-3.5 h-3.5 mr-1.5 text-indigo-400"/> {item.tipo}</span>
@@ -1188,7 +1188,7 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
                         <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100/50">
                           <span className="block text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-1">Data / Mês</span>
-                          <span className="font-bold text-slate-800">{new Date(item.data).toLocaleDateString('pt-BR')} <span className="text-slate-400 ml-1">({item.mes || '-'})</span></span>
+                         <span className="font-bold text-slate-800">{new Date(item.data).toLocaleDateString('pt-BR', { timeZone: 'UTC' })} <span className="text-slate-400 ml-1">({item.mes || '-'})</span></span>
                         </div>
                         <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100/50">
                           <span className="block text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-1">Rota</span>
