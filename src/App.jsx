@@ -1177,7 +1177,7 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
                       <h4 className="text-xl font-black text-slate-800">Planilha Operacional Completa</h4>
                     </div>
                     <p className="text-sm text-slate-500 font-medium">
-                      Lê automaticamente as abas <strong className="text-indigo-600">IMP, EXP e EXT</strong>, cruza os e-mails com a base de motoristas e substitui as viagens do mês selecionado.
+                      Lê automaticamente as a planilha de premiação <strong className="text-indigo-600">IMP, EXP e EXT</strong>, importar planilha em formato XLSX.
                     </p>
                   </div>
 
