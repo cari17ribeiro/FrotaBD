@@ -699,6 +699,7 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
   const [viewImageUrl, setViewImageUrl] = useState(null);
   const [mesImportacao, setMesImportacao] = useState('');
   const [isImportingUnificado, setIsImportingUnificado] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
 
   // States Cadastro Motorista
   const [nomeMotorista, setNomeMotorista] = useState('');
@@ -874,15 +875,6 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
     window.XLSX.writeFile(wb, filename);
   };
 
-  // ==========================================================================
-  // 1. ADICIONE ESTES STATES JUNTO COM OS OUTROS NO INÍCIO DO COMPONENTE
-  // ==========================================================================
-  const [mesImportacao, setMesImportacao] = useState('');
-  const [isImportingUnificado, setIsImportingUnificado] = useState(false);
-
-  // ==========================================================================
-  // 2. FUNÇÕES DE IMPORTAÇÃO (A sua antiga e a nova unificada)
-  // ==========================================================================
   
   // Importação via XLSX (A sua função original mantida)
   const handleImportXLSX = async (e, tipo) => {
