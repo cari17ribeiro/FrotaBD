@@ -1008,6 +1008,7 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
             throw new Error("Nenhum dado encontrado nas abas IMP, EXP ou EXT a partir da linha 13.");
           }
 
+          // 3. Apagar as viagens existentes deste mês
           const { error: errDel } = await supabase
             .from('minhas_viagens')
             .delete()
@@ -1015,16 +1016,14 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
             
           if (errDel) throw new Error("Erro ao limpar os dados do mês anterior.");
 
-        
-          console.log("Linhas preparadas para o banco:", viagensParaInserir);
-
+          // 4. Inserir os novos dados (agora vai aceitar as duplicadas normais da operação)
           const { error: errIns } = await supabase
             .from('minhas_viagens')
             .insert(viagensParaInserir);
 
           if (errIns) {
-            console.error("ERRO DO SUPABASE:", errIns);
-            throw new Error(`Erro na base de dados: ${errIns.message}. Detalhes: ${errIns.details || 'Ver console'}`);
+             console.error("ERRO DO SUPABASE:", errIns);
+             throw new Error(`Erro ao gravar: ${errIns.message}`);
           }
 
           alert(`Sucesso! O mês ${mesImportacao} foi atualizado com ${viagensParaInserir.length} viagens.`);
