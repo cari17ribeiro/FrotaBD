@@ -1015,6 +1015,20 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
               const nomeNorm = String(nomeMotorista).trim().toUpperCase();
               const email = mapMotoristas[nomeNorm] || 'sem_email@bdflow.com';
 
+              // Tratamento para formatar o valor do prémio corretamente (2 casas decimais + R$)
+              let valorPremio = row['AA'];
+              let premioFormatado = 'R$ 0,00';
+              
+              if (valorPremio !== undefined && valorPremio !== '') {
+                if (typeof valorPremio === 'number') {
+                  // Converte 1282.70099 para "R$ 1.282,70"
+                  premioFormatado = valorPremio.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                } else {
+                  // Se já for texto na planilha (ex: o utilizador digitou "R$ 704,00" manualmente)
+                  premioFormatado = String(valorPremio).trim();
+                }
+              }
+
               resumosParaInserir.push({
                 email: email,
                 motorista: String(nomeMotorista).trim(),
@@ -1022,8 +1036,7 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
                 expo: row['K'] || 0,
                 extra: row['M'] || 0,
                 total_viagens: row['P'] || 0,
-                premio: row['AA'] ? String(row['AA']).trim() : 'R$ 0,00'
-                // Nota: Removida a 'competencia' pois esta tabela será substituída por inteiro
+                premio: premioFormatado
               });
             });
           }
