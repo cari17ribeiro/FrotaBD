@@ -697,7 +697,8 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
   const [actionState, setActionState] = useState({ id: null, type: null }); 
   const [actionMessage, setActionMessage] = useState('');
   const [viewImageUrl, setViewImageUrl] = useState(null);
-  const [isImporting, setIsImporting] = useState(false);
+  const [mesImportacao, setMesImportacao] = useState('');
+  const [isImportingUnificado, setIsImportingUnificado] = useState(false);
 
   // States Cadastro Motorista
   const [nomeMotorista, setNomeMotorista] = useState('');
@@ -873,7 +874,17 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
     window.XLSX.writeFile(wb, filename);
   };
 
-  // Importação via XLSX
+  // ==========================================================================
+  // 1. ADICIONE ESTES STATES JUNTO COM OS OUTROS NO INÍCIO DO COMPONENTE
+  // ==========================================================================
+  const [mesImportacao, setMesImportacao] = useState('');
+  const [isImportingUnificado, setIsImportingUnificado] = useState(false);
+
+  // ==========================================================================
+  // 2. FUNÇÕES DE IMPORTAÇÃO (A sua antiga e a nova unificada)
+  // ==========================================================================
+  
+  // Importação via XLSX (A sua função original mantida)
   const handleImportXLSX = async (e, tipo) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -913,8 +924,130 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
     reader.readAsBinaryString(file);
   };
 
+  // Nova Função: Formatar Data do Excel
+  const formatarDataExcel = (valorData) => {
+    if (!valorData) return null;
+    if (!isNaN(valorData) && typeof valorData === 'number') {
+      const dateObj = new Date((valorData - (25567 + 2)) * 86400 * 1000);
+      return dateObj.toISOString().split('T')[0];
+    }
+    if (typeof valorData === 'string' && valorData.includes('/')) {
+      const [d, m, a] = valorData.split(' ')[0].split('/');
+      if (d && m && a) return `${a}-${m}-${d}`;
+    }
+    return valorData;
+  };
+
+  // Nova Função: Importação Unificada (Lê abas IMP, EXP, EXT)
+  const handleImportacaoUnificada = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!mesImportacao.trim()) {
+      alert("Por favor, preencha o Mês de Referência (Ex: 03/2026) antes de importar o ficheiro.");
+      e.target.value = null;
+      return;
+    }
+
+    if (!window.XLSX) return alert("A biblioteca Excel ainda está a carregar...");
+    setIsImportingUnificado(true);
+
+    try {
+      const { data: motoristasDb, error: errMot } = await supabase
+        .from('motoristas_cadastrados')
+        .select('motorista, email');
+      
+      if (errMot) throw new Error("Erro ao buscar base de motoristas.");
+
+      const mapMotoristas = {};
+      motoristasDb.forEach(m => {
+        if (m.motorista) mapMotoristas[m.motorista.trim().toUpperCase()] = m.email;
+      });
+
+      const reader = new FileReader();
+      
+      reader.onload = async (evt) => {
+        try {
+          const data = evt.target.result;
+          const workbook = window.XLSX.read(data, { type: 'binary' });
+
+          let viagensParaInserir = [];
+
+          const processarAba = (nomeAba, tipoViagem, mapaColunas) => {
+            const sheet = workbook.Sheets[nomeAba];
+            if (!sheet) return;
+
+            const json = window.XLSX.utils.sheet_to_json(sheet, { header: "A", range: 12, defval: "" });
+
+            json.forEach(row => {
+              const nomeMotorista = row[mapaColunas.mot];
+              if (!nomeMotorista) return; 
+
+              const nomeNorm = nomeMotorista.toString().trim().toUpperCase();
+              const email = mapMotoristas[nomeNorm] || 'sem_email@bdflow.com';
+
+              viagensParaInserir.push({
+                email: email,
+                motorista: nomeMotorista.toString().trim(),
+                origem: row[mapaColunas.orig]?.toString() || '',
+                destino: row[mapaColunas.dest]?.toString() || '',
+                container: row[mapaColunas.cont]?.toString() || '',
+                data: formatarDataExcel(row[mapaColunas.data]),
+                tipo: tipoViagem,
+                mes: mesImportacao.trim(),
+                status: 'confirmada'
+              });
+            });
+          };
+
+          processarAba('IMP', 'IMPO', { mot: 'I', orig: 'C', dest: 'P', cont: 'D', data: 'K' });
+          processarAba('EXP', 'EXPO', { mot: 'I', orig: 'B', dest: 'C', cont: 'D', data: 'L' });
+          processarAba('EXT', 'EXTRA', { mot: 'G', orig: 'C', dest: 'D', cont: 'E', data: 'H' });
+
+          if (viagensParaInserir.length === 0) {
+            throw new Error("Nenhum dado encontrado nas abas IMP, EXP ou EXT a partir da linha 13.");
+          }
+
+          const { error: errDel } = await supabase
+            .from('minhas_viagens')
+            .delete()
+            .eq('mes', mesImportacao.trim());
+            
+          if (errDel) throw new Error("Erro ao limpar os dados do mês anterior.");
+
+          const { error: errIns } = await supabase
+            .from('minhas_viagens')
+            .insert(viagensParaInserir);
+
+          if (errIns) throw new Error("Erro ao gravar novas viagens na base de dados.");
+
+          alert(`Sucesso! O mês ${mesImportacao} foi atualizado com ${viagensParaInserir.length} viagens.`);
+          refreshData();
+          setMesImportacao('');
+
+        } catch (err) {
+          console.error(err);
+          alert(err.message);
+        } finally {
+          setIsImportingUnificado(false);
+          e.target.value = null;
+        }
+      };
+      
+      reader.readAsBinaryString(file);
+
+    } catch (error) {
+      alert(error.message);
+      setIsImportingUnificado(false);
+      e.target.value = null;
+    }
+  };
+
   const toggleSort = (type) => setSortBy(sortBy === `${type}_desc` ? `${type}_asc` : `${type}_desc`);
 
+  // ==========================================================================
+  // 3. O RETURN COM A INTERFACE ATUALIZADA
+  // ==========================================================================
   return (
     <div className="space-y-8">
       {/* Header Admin */}
@@ -993,6 +1126,49 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
                 <p className="text-slate-500 mt-2 font-medium">Baixe o modelo, preencha os dados e importe diretamente para o sistema.</p>
               </div>
 
+              {/* NOVA SEÇÃO: IMPORTAÇÃO UNIFICADA DE VIAGENS */}
+              <div className="bg-white border-2 border-indigo-100 p-8 rounded-3xl shadow-sm mb-10">
+                <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                  
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-3 mb-2">
+                      <div className="bg-indigo-100 text-indigo-600 p-2.5 rounded-xl"><FileSpreadsheet className="w-6 h-6"/></div>
+                      <h4 className="text-xl font-black text-slate-800">Planilha Operacional Completa</h4>
+                    </div>
+                    <p className="text-sm text-slate-500 font-medium">
+                      Lê automaticamente as abas <strong className="text-indigo-600">IMP, EXP e EXT</strong>, cruza os e-mails com a base de motoristas e substitui as viagens do mês selecionado.
+                    </p>
+                  </div>
+
+                  <div className="flex-1 w-full bg-slate-50 p-5 rounded-2xl border border-slate-200/60">
+                    <label className="block text-sm font-bold text-slate-700 mb-2">Mês de Referência</label>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <input 
+                        type="text" 
+                        placeholder="Ex: 03/2026" 
+                        value={mesImportacao}
+                        onChange={e => setMesImportacao(e.target.value)}
+                        className="flex-1 border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-500/20 border"
+                      />
+                      <label className={`cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-md flex items-center justify-center whitespace-nowrap ${!mesImportacao.trim() ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                        {isImportingUnificado ? <Loader2 className="w-5 h-5 mr-2 animate-spin" /> : <Upload className="w-5 h-5 mr-2" />}
+                        Importar Planilha
+                        <input 
+                          type="file" 
+                          accept=".xlsx, .xls" 
+                          className="hidden" 
+                          onChange={handleImportacaoUnificada} 
+                          disabled={isImportingUnificado || !mesImportacao.trim()} 
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+              {/* FIM DA NOVA SEÇÃO */}
+
+              {/* SEÇÃO ANTIGA (Resumos, Diesel e Viagens Manuais Avulsas) */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {[
                   { id: 'viagens', title: 'Base de Viagens', sub: 'Histórico consolidado', icon: <Truck />, 
@@ -1006,7 +1182,7 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
                   }
                 ].map((card, i) => (
                   <div key={i} className="border-2 border-dashed border-slate-200 rounded-3xl p-6 flex flex-col items-center text-center hover:border-blue-300 hover:bg-slate-50 transition-all cursor-pointer group">
-                    <div className={`bg-${card.color}-50 text-${card.color}-600 p-4 rounded-2xl mb-4 group-hover:scale-110 group-hover:shadow-lg transition-all duration-300`}>
+                    <div className={`bg-${card.styles.bg.split('-')[1]}-50 text-${card.styles.text.split('-')[1]}-600 p-4 rounded-2xl mb-4 group-hover:scale-110 group-hover:shadow-lg transition-all duration-300`}>
                       {React.cloneElement(card.icon, { className: 'w-7 h-7' })}
                     </div>
                     <h4 className="font-bold text-slate-800 text-lg mb-1">{card.title}</h4>
@@ -1034,13 +1210,6 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
                     </div>
                   </div>
                 ))}
-              </div>
-
-              <div className="bg-blue-50 p-5 rounded-2xl flex items-start space-x-3 border border-blue-100">
-                <AlertCircle className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
-                <p className="text-sm text-blue-800 leading-relaxed font-medium">
-                  <strong>Nota de Integração:</strong> Ao selecionar um ficheiro, utilize a função de upload do Supabase ou integre o `papaparse` para leitura em memória antes do upsert.
-                </p>
               </div>
             </div>
           </div>
