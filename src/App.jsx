@@ -1020,14 +1020,11 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
 
           const { error: errIns } = await supabase
             .from('minhas_viagens')
-            .upsert(viagensParaInserir, { 
-              onConflict: 'unique_viagem', 
-              ignoreDuplicates: true 
-            });
+            .insert(viagensParaInserir);
 
           if (errIns) {
             console.error("ERRO DO SUPABASE:", errIns);
-            throw new Error(`Erro ao gravar: ${errIns.message}`);
+            throw new Error(`Erro na base de dados: ${errIns.message}. Detalhes: ${errIns.details || 'Ver console'}`);
           }
 
           alert(`Sucesso! O mês ${mesImportacao} foi atualizado com ${viagensParaInserir.length} viagens.`);
@@ -1647,5 +1644,3 @@ function StatusBadge({ status }) {
     </span>
   );
 }
-
-
