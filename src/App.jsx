@@ -930,7 +930,6 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
     return valorData;
   };
 
-  // Nova Função: Importação Unificada (Lê abas IMP, EXP, EXT)
   const handleImportacaoUnificada = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -945,6 +944,7 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
     setIsImportingUnificado(true);
 
     try {
+      // 1. Buscar motoristas para cruzar e-mails
       const { data: motoristasDb, error: errMot } = await supabase
         .from('motoristas_cadastrados')
         .select('motorista, email');
@@ -964,23 +964,20 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
           const workbook = window.XLSX.read(data, { type: 'binary' });
 
           let viagensParaInserir = [];
+          let resumosParaInserir = [];
+          let dieselParaInserir = [];
 
-          const processarAba = (nomeAba, tipoViagem, mapaColunas) => {
+          // ==========================================
+          // 1. LER VIAGENS (IMP, EXP, EXT)
+          // ==========================================
+          const processarAbaViagens = (nomeAba, tipoViagem, mapaColunas) => {
             const sheet = workbook.Sheets[nomeAba];
             if (!sheet) return;
 
-            // CORREÇÃO: Removido o defval: "" e adicionado blankrows: false
-            // Isso impede que o sistema tente ler milhares de linhas vazias
-            const json = window.XLSX.utils.sheet_to_json(sheet, { 
-              header: "A", 
-              range: 12, 
-              blankrows: false 
-            });
+            const json = window.XLSX.utils.sheet_to_json(sheet, { header: "A", range: 12, blankrows: false });
 
             json.forEach(row => {
               const nomeMotorista = row[mapaColunas.mot];
-              
-              // Se a célula do motorista estiver vazia ou for só espaço, pula a linha
               if (!nomeMotorista || String(nomeMotorista).trim() === '') return; 
 
               const nomeNorm = String(nomeMotorista).trim().toUpperCase();
@@ -995,38 +992,122 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
                 data: formatarDataExcel(row[mapaColunas.data]),
                 tipo: tipoViagem,
                 mes: mesImportacao.trim(),
-                status: 'pendente'
+                status: 'confirmada'
               });
             });
           };
 
-          processarAba('IMP', 'IMPO', { mot: 'I', orig: 'C', dest: 'P', cont: 'D', data: 'K' });
-          processarAba('EXP', 'EXPO', { mot: 'I', orig: 'B', dest: 'C', cont: 'D', data: 'L' });
-          processarAba('EXT', 'EXTRA', { mot: 'G', orig: 'C', dest: 'D', cont: 'E', data: 'H' });
+          processarAbaViagens('IMP', 'IMPO', { mot: 'I', orig: 'C', dest: 'P', cont: 'D', data: 'K' });
+          processarAbaViagens('EXP', 'EXPO', { mot: 'I', orig: 'B', dest: 'C', cont: 'D', data: 'L' });
+          processarAbaViagens('EXT', 'EXTRA', { mot: 'G', orig: 'C', dest: 'D', cont: 'E', data: 'H' });
+
+          // ==========================================
+          // 2. LER RESUMO (RESULTADO)
+          // ==========================================
+          const sheetResultado = workbook.Sheets['RESULTADO'];
+          if (sheetResultado) {
+            // range: 19 ignora as primeiras 19 linhas (lê a partir da 20)
+            const jsonResumo = window.XLSX.utils.sheet_to_json(sheetResultado, { header: "A", range: 19, blankrows: false });
+            jsonResumo.forEach(row => {
+              const nomeMotorista = row['E']; // Coluna E
+              if (!nomeMotorista || String(nomeMotorista).trim() === '') return;
+
+              const nomeNorm = String(nomeMotorista).trim().toUpperCase();
+              const email = mapMotoristas[nomeNorm] || 'sem_email@bdflow.com';
+
+              resumosParaInserir.push({
+                email: email,
+                motorista: String(nomeMotorista).trim(),
+                impo: row['I'] || 0,
+                expo: row['K'] || 0,
+                extra: row['M'] || 0,
+                total_viagens: row['P'] || 0,
+                premio: row['AA'] ? String(row['AA']).trim() : 'R$ 0,00'
+                // Nota: Removida a 'competencia' pois esta tabela será substituída por inteiro
+              });
+            });
+          }
+
+          // ==========================================
+          // 3. LER DIESEL (MÉDIA COMBUSTIVEL)
+          // ==========================================
+          const sheetDiesel = workbook.Sheets['MÉDIA COMBUSTIVEL'];
+          if (sheetDiesel) {
+            // range: 42 ignora as primeiras 42 linhas (lê a partir da 43)
+            const jsonDiesel = window.XLSX.utils.sheet_to_json(sheetDiesel, { header: "A", range: 42, blankrows: false });
+            jsonDiesel.forEach(row => {
+              const nomeMotorista = row['C']; // Coluna C
+              if (!nomeMotorista || String(nomeMotorista).trim() === '') return;
+
+              const nomeNorm = String(nomeMotorista).trim().toUpperCase();
+              const email = mapMotoristas[nomeNorm] || 'sem_email@bdflow.com';
+
+              dieselParaInserir.push({
+                email: email,
+                motorista: String(nomeMotorista).trim(),
+                media: row['F'] || null, // Coluna F
+                competencia: mesImportacao.trim()
+              });
+            });
+          }
 
           if (viagensParaInserir.length === 0) {
-            throw new Error("Nenhum dado encontrado nas abas IMP, EXP ou EXT a partir da linha 13.");
+            throw new Error("Nenhum dado de viagem encontrado nas abas IMP, EXP ou EXT.");
           }
 
-          // 3. Apagar as viagens existentes deste mês
-          const { error: errDel } = await supabase
-            .from('minhas_viagens')
-            .delete()
-            .eq('mes', mesImportacao.trim());
-            
-          if (errDel) throw new Error("Erro ao limpar os dados do mês anterior.");
-
-          // 4. Inserir os novos dados (agora vai aceitar as duplicadas normais da operação)
-          const { error: errIns } = await supabase
-            .from('minhas_viagens')
-            .insert(viagensParaInserir);
-
-          if (errIns) {
-             console.error("ERRO DO SUPABASE:", errIns);
-             throw new Error(`Erro ao gravar: ${errIns.message}`);
+          // ==========================================
+          // 4. APAGAR DADOS (Mês atual ou Tudo)
+          // ==========================================
+          const promessasDelete = [];
+          
+          // Apaga apenas o mês atual nas Viagens
+          promessasDelete.push(supabase.from('minhas_viagens').delete().eq('mes', mesImportacao.trim()));
+          
+          // Apaga APENAS o mês atual no Diesel
+          if (dieselParaInserir.length > 0) {
+            promessasDelete.push(supabase.from('diesel').delete().eq('competencia', mesImportacao.trim()));
           }
 
-          alert(`Sucesso! O mês ${mesImportacao} foi atualizado com ${viagensParaInserir.length} viagens.`);
+          // Apaga a TABELA TODA de Resumos (not is null é um truque seguro do Supabase para apagar tudo)
+          if (resumosParaInserir.length > 0) {
+            promessasDelete.push(supabase.from('resumo').delete().not('id', 'is', null));
+          }
+
+          const resultadosDelete = await Promise.all(promessasDelete);
+          const erroDelete = resultadosDelete.find(r => r.error);
+          if (erroDelete) throw new Error("Erro ao limpar dados anteriores: " + erroDelete.error.message);
+
+          // ==========================================
+          // 5. INSERIR NOVOS DADOS
+          // ==========================================
+          const promessasInsert = [];
+          
+          promessasInsert.push(supabase.from('minhas_viagens').insert(viagensParaInserir));
+          
+          if (resumosParaInserir.length > 0) {
+            promessasInsert.push(supabase.from('resumo').insert(resumosParaInserir));
+          }
+          if (dieselParaInserir.length > 0) {
+            promessasInsert.push(supabase.from('diesel').insert(dieselParaInserir));
+          }
+
+          const resultadosInsert = await Promise.all(promessasInsert);
+          const erroInsert = resultadosInsert.find(r => r.error);
+          
+          if (erroInsert) {
+            console.error("ERRO DO SUPABASE:", erroInsert.error);
+            throw new Error(`Erro ao gravar dados: ${erroInsert.error.message}`);
+          }
+
+          // ==========================================
+          // CONCLUSÃO
+          // ==========================================
+          let msgSucesso = `Sucesso! Base de dados atualizada:\n`;
+          msgSucesso += `🚛 ${viagensParaInserir.length} viagens adicionadas (Mês: ${mesImportacao})\n`;
+          if (resumosParaInserir.length > 0) msgSucesso += `🏆 ${resumosParaInserir.length} resumos atualizados (Substituição Total)\n`;
+          if (dieselParaInserir.length > 0) msgSucesso += `⛽ ${dieselParaInserir.length} médias de diesel (Mês: ${mesImportacao})`;
+
+          alert(msgSucesso);
           refreshData();
           setMesImportacao('');
 
@@ -1047,9 +1128,6 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
       e.target.value = null;
     }
   };
-
-  const toggleSort = (type) => setSortBy(sortBy === `${type}_desc` ? `${type}_asc` : `${type}_desc`);
-
   // ==========================================================================
   // 3. O RETURN COM A INTERFACE ATUALIZADA
   // ==========================================================================
