@@ -995,7 +995,7 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
                 data: formatarDataExcel(row[mapaColunas.data]),
                 tipo: tipoViagem,
                 mes: mesImportacao.trim(),
-                status: 'confirmada'
+                status: 'pendente'
               });
             });
           };
