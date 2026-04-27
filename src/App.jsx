@@ -969,21 +969,29 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
             const sheet = workbook.Sheets[nomeAba];
             if (!sheet) return;
 
-            const json = window.XLSX.utils.sheet_to_json(sheet, { header: "A", range: 12, defval: "" });
+            // CORREÇÃO: Removido o defval: "" e adicionado blankrows: false
+            // Isso impede que o sistema tente ler milhares de linhas vazias
+            const json = window.XLSX.utils.sheet_to_json(sheet, { 
+              header: "A", 
+              range: 12, 
+              blankrows: false 
+            });
 
             json.forEach(row => {
               const nomeMotorista = row[mapaColunas.mot];
-              if (!nomeMotorista) return; 
+              
+              // Se a célula do motorista estiver vazia ou for só espaço, pula a linha
+              if (!nomeMotorista || String(nomeMotorista).trim() === '') return; 
 
-              const nomeNorm = nomeMotorista.toString().trim().toUpperCase();
+              const nomeNorm = String(nomeMotorista).trim().toUpperCase();
               const email = mapMotoristas[nomeNorm] || 'sem_email@bdflow.com';
 
               viagensParaInserir.push({
                 email: email,
-                motorista: nomeMotorista.toString().trim(),
-                origem: row[mapaColunas.orig]?.toString() || '',
-                destino: row[mapaColunas.dest]?.toString() || '',
-                container: row[mapaColunas.cont]?.toString() || '',
+                motorista: String(nomeMotorista).trim(),
+                origem: row[mapaColunas.orig] ? String(row[mapaColunas.orig]).trim() : '',
+                destino: row[mapaColunas.dest] ? String(row[mapaColunas.dest]).trim() : '',
+                container: row[mapaColunas.cont] ? String(row[mapaColunas.cont]).trim() : '',
                 data: formatarDataExcel(row[mapaColunas.data]),
                 tipo: tipoViagem,
                 mes: mesImportacao.trim(),
