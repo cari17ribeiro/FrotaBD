@@ -1015,11 +1015,17 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
             
           if (errDel) throw new Error("Erro ao limpar os dados do mês anterior.");
 
+        
+          console.log("Linhas preparadas para o banco:", viagensParaInserir);
+
           const { error: errIns } = await supabase
             .from('minhas_viagens')
             .insert(viagensParaInserir);
 
-          if (errIns) throw new Error("Erro ao gravar novas viagens na base de dados.");
+          if (errIns) {
+            console.error("ERRO DO SUPABASE:", errIns);
+            throw new Error(`Erro na base de dados: ${errIns.message}. Detalhes: ${errIns.details || 'Ver console'}`);
+          }
 
           alert(`Sucesso! O mês ${mesImportacao} foi atualizado com ${viagensParaInserir.length} viagens.`);
           refreshData();
