@@ -28,7 +28,9 @@ import {
   Download
 } from 'lucide-react';
 
-
+// ============================================================================
+// FUNÇÃO UTILITÁRIA PARA CÁLCULO DE PERÍODO (Dia 21 ao Dia 20)
+// ============================================================================
 const calcularPeriodoViagem = (dataStr) => {
   if (!dataStr) return '';
   try {
@@ -51,7 +53,9 @@ const calcularPeriodoViagem = (dataStr) => {
   }
 };
 
-
+// ============================================================================
+// CONFIGURAÇÃO REAL DO SUPABASE
+// ============================================================================
 const supabaseUrl = 'https://dwlcaplumgtgvbducrev.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR3bGNhcGx1bWd0Z3ZiZHVjcmV2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY4MzY5NDMsImV4cCI6MjA2MjQxMjk0M30.8oGZIvEIruVdOjuMT-oPtgOGLh_QgfR3XV07V3AOe40';
 
@@ -65,7 +69,6 @@ export default function App() {
   const [premiosLiberados, setPremiosLiberados] = useState(false);
   const [correcoesBloqueadas, setCorrecoesBloqueadas] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(false);
-  const [ultimaAtualizacao, setUltimaAtualizacao] = useState(null);
 
   // Injeta Tailwind, Supabase e SheetJS (Excel) dinamicamente
   useEffect(() => {
@@ -122,10 +125,9 @@ export default function App() {
 
     try {
       const { data: configData } = await supabaseClient.from('configuracoes').select('*').eq('id', 1).single();
-     if (configData) {
+      if (configData) {
         setPremiosLiberados(configData.premios_liberados);
         setCorrecoesBloqueadas(configData.correcoes_bloqueadas);
-        setUltimaAtualizacao(configData.ultima_atualizacao); // Puxa a data do banco
       }
 
       if (currentUser.admin) {
@@ -236,7 +238,6 @@ export default function App() {
             resumos={resumos} diesel={diesel} 
             premiosLiberados={premiosLiberados} 
             correcoesBloqueadas={correcoesBloqueadas}
-            ultimaAtualizacao={ultimaAtualizacao} // <--- ADICIONE ESTA LINHA
             refreshData={fetchData}
             supabase={supabaseClient}
           />
@@ -245,6 +246,7 @@ export default function App() {
     </div>
   );
 }
+
 // ============================================================================
 // COMPONENTE: TELA DE LOGIN (Design Claro)
 // ============================================================================
@@ -341,7 +343,7 @@ function LoginScreen({ onLogin, supabase }) {
 // ============================================================================
 // COMPONENTE: PAINEL DO MOTORISTA
 // ============================================================================
-function DriverDashboard({ currentUser, viagens, setViagens, pendentes, setPendentes, resumos, diesel, premiosLiberados, correcoesBloqueadas, ultimaAtualizacao, refreshData, supabase }) {
+function DriverDashboard({ currentUser, viagens, setViagens, pendentes, setPendentes, resumos, diesel, premiosLiberados, correcoesBloqueadas, refreshData, supabase }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [filtroCompetencia, setFiltroCompetencia] = useState('');
   const [filtroPeriodo, setFiltroPeriodo] = useState('');
@@ -464,20 +466,6 @@ function DriverDashboard({ currentUser, viagens, setViagens, pendentes, setPende
           </select>
         </div>
       </div>
-
-      {ultimaAtualizacao && (
-        <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl flex items-start space-x-4 shadow-sm animate-in fade-in slide-in-from-top-4 duration-500">
-          <div className="bg-blue-100 p-2.5 rounded-xl text-blue-600 shrink-0 mt-0.5">
-             <Clock className="w-5 h-5" />
-          </div>
-          <div>
-            <h4 className="text-sm font-bold text-blue-900">Base de Dados Sincronizada</h4>
-            <p className="text-sm text-blue-800/80 mt-0.5 font-medium">
-              As informações de viagens, premiações e médias de diesel foram atualizadas em: <strong className="text-blue-700">{new Date(ultimaAtualizacao).toLocaleString('pt-BR')}</strong>.
-            </p>
-          </div>
-        </div>
-      )}
 
       {/* Estatísticas */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -854,6 +842,80 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
     window.XLSX.writeFile(wb, "motoristas_cadastrados.xlsx");
   };
 
+  // Exportação em XLSX
+  const baixarModeloXLSX = (tipo) => {
+    if (!window.XLSX) return alert("Biblioteca Excel a carregar. Tente novamente em breves instantes.");
+    
+    let data = [];
+    let filename = "";
+
+    if (tipo === 'viagens') {
+      data = [
+        ["email", "origem", "destino", "container", "data", "motorista", "tipo", "mes", "status"],
+        ["motorista@premio.com", "Santos-Brasil", "CLIA", "MSKU1234567", "15/03/2026", "João Silva", "Importação", "março", "pendente"]
+      ];
+      filename = "modelo_base_viagens.xlsx";
+    } else if (tipo === 'resumos') {
+      data = [
+        ["email", "motorista", "competencia", "impo", "expo", "extra", "total_viagens", "premio"],
+        ["motorista@premio.com", "João Silva", "03/2026", 15, 10, 3, 28, "R$ 850,00"]
+      ];
+      filename = "modelo_base_resumos.xlsx";
+    } else if (tipo === 'diesel') {
+      data = [
+        ["email", "motorista", "competencia", "media"],
+        ["motorista@premio.com", "João Silva", "03/2026", 2.85]
+      ];
+      filename = "modelo_base_diesel.xlsx";
+    }
+
+    const ws = window.XLSX.utils.aoa_to_sheet(data);
+    const wb = window.XLSX.utils.book_new();
+    window.XLSX.utils.book_append_sheet(wb, ws, "Dados");
+    window.XLSX.writeFile(wb, filename);
+  };
+
+  
+  // Importação via XLSX (A sua função original mantida)
+  const handleImportXLSX = async (e, tipo) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!window.XLSX) return alert("A biblioteca Excel ainda está a carregar...");
+    setIsImporting(tipo);
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const data = evt.target.result;
+        const workbook = window.XLSX.read(data, { type: 'binary' });
+        const sheetName = workbook.SheetNames[0];
+        const json = window.XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { raw: false });
+
+        if (json.length === 0) throw new Error("A planilha está vazia.");
+
+        let table = '';
+        if (tipo === 'viagens') table = 'minhas_viagens';
+        else if (tipo === 'resumos') table = 'resumo';
+        else if (tipo === 'diesel') table = 'diesel';
+
+        const { error } = await supabase.from(table).upsert(json);
+        
+        if (error) throw error;
+        
+        alert(`Sucesso! Importados ${json.length} registos para a base de dados.`);
+        refreshData(); 
+      } catch (err) {
+        console.error(err);
+        alert("Erro ao importar planilha: " + err.message);
+      } finally {
+        setIsImporting(false);
+        e.target.value = null; // reseta o input
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
   // Nova Função: Formatar Data do Excel
   const formatarDataExcel = (valorData) => {
     if (!valorData) return null;
@@ -1053,8 +1115,6 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
           // ==========================================
           // CONCLUSÃO
           // ==========================================
-          const dataAtual = new Date().toISOString();
-          await supabase.from('configuracoes').update({ ultima_atualizacao: dataAtual }).eq('id', 1);
           let msgSucesso = `Sucesso! Base de dados atualizada:\n`;
           msgSucesso += `🚛 ${viagensParaInserir.length} viagens adicionadas (Mês: ${mesImportacao})\n`;
           if (resumosParaInserir.length > 0) msgSucesso += `🏆 ${resumosParaInserir.length} resumos atualizados (Substituição Total)\n`;
@@ -1120,7 +1180,36 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
         </div>
       </div>
 
-     
+      {/* Modern Segmented Tabs */}
+      <div className="bg-white p-1.5 rounded-2xl flex overflow-x-auto hide-scrollbar border border-slate-200 shadow-sm w-fit">
+        {[
+          { id: 'Em Análise', label: 'Pendentes', badge: aguardando.length },
+          { id: 'historico', label: 'Histórico' },
+          { id: 'todas', label: 'Base Completa' },
+          { id: 'importar', label: 'Importar Lotes', icon: <FileSpreadsheet className="w-4 h-4 mr-2" /> },
+          { id: 'motoristas', label: 'Motoristas', icon: <Users className="w-4 h-4 mr-2" /> }
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center justify-center px-6 py-2.5 rounded-xl font-bold text-sm transition-all whitespace-nowrap ${
+              activeTab === tab.id 
+                ? 'bg-blue-600 text-white shadow-md' 
+                : 'text-slate-500 hover:text-blue-600 hover:bg-blue-50/50'
+            }`}
+          >
+            {tab.icon}
+            {tab.label}
+            {tab.badge > 0 && (
+              <span className={`ml-2 px-2 py-0.5 rounded-md text-[10px] uppercase tracking-wider ${
+                activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+              }`}>
+                {tab.badge}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
 
       <div className="bg-white rounded-3xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100 overflow-hidden">
         
@@ -1143,7 +1232,7 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
                       <h4 className="text-xl font-black text-slate-800">Planilha Operacional Completa</h4>
                     </div>
                     <p className="text-sm text-slate-500 font-medium">
-                      Lê automaticamente as a planilha de premiação <strong className="text-indigo-600">IMP, EXP e EXT</strong>, importar planilha em formato XLSX.
+                      Lê automaticamente as abas <strong className="text-indigo-600">IMP, EXP e EXT</strong>, cruza os e-mails com a base de motoristas e substitui as viagens do mês selecionado.
                     </p>
                   </div>
 
@@ -1175,7 +1264,52 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
               </div>
               {/* FIM DA NOVA SEÇÃO */}
 
-             
+              {/* SEÇÃO ANTIGA (Resumos, Diesel e Viagens Manuais Avulsas) */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {[
+                  { id: 'viagens', title: 'Base de Viagens', sub: 'Histórico consolidado', icon: <Truck />, 
+                    styles: { bg: 'bg-blue-50', text: 'text-blue-600', btnHover: 'hover:bg-blue-100', border: 'border-blue-200' } 
+                  },
+                  { id: 'resumos', title: 'Base de Resumos', sub: 'Impo, Expo e Prémios', icon: <Award />, 
+                    styles: { bg: 'bg-teal-50', text: 'text-teal-600', btnHover: 'hover:bg-teal-100', border: 'border-teal-200' } 
+                  },
+                  { id: 'diesel', title: 'Base de Diesel', sub: 'Médias de consumo (km/L)', icon: <Droplet />, 
+                    styles: { bg: 'bg-cyan-50', text: 'text-cyan-600', btnHover: 'hover:bg-cyan-100', border: 'border-cyan-200' } 
+                  }
+                ].map((card, i) => (
+                  <div key={i} className="border-2 border-dashed border-slate-200 rounded-3xl p-6 flex flex-col items-center text-center hover:border-blue-300 hover:bg-slate-50 transition-all cursor-pointer group">
+                    <div className={`bg-${card.styles.bg.split('-')[1]}-50 text-${card.styles.text.split('-')[1]}-600 p-4 rounded-2xl mb-4 group-hover:scale-110 group-hover:shadow-lg transition-all duration-300`}>
+                      {React.cloneElement(card.icon, { className: 'w-7 h-7' })}
+                    </div>
+                    <h4 className="font-bold text-slate-800 text-lg mb-1">{card.title}</h4>
+                    <p className="text-xs text-slate-400 mb-6 font-medium px-4">{card.sub}</p>
+                    
+                    <div className="flex flex-col gap-2 w-full mt-auto">
+                      <label className={`cursor-pointer text-sm font-bold ${card.styles.text} ${card.styles.bg} border ${card.styles.border} px-5 py-3 rounded-xl ${card.styles.btnHover} transition-colors w-full flex items-center justify-center shadow-sm`}>
+                        {isImporting === card.id ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+                        {isImporting === card.id ? 'A importar...' : 'Importar (.xlsx)'}
+                        <input 
+                          type="file" 
+                          accept=".xlsx, .xls" 
+                          className="hidden" 
+                          onChange={(e) => handleImportXLSX(e, card.id)} 
+                          disabled={!!isImporting} 
+                        />
+                      </label>
+                      <button 
+                        onClick={() => baixarModeloXLSX(card.id)}
+                        className="text-xs font-semibold text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 px-5 py-2.5 rounded-xl transition-colors w-full flex items-center justify-center shadow-sm"
+                      >
+                        <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" />
+                        Baixar Modelo
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Aba de Motoristas */}
         {activeTab === 'motoristas' && (
@@ -1435,6 +1569,11 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
             <img src={viewImageUrl} alt="Comprovante" className="max-h-[85vh] w-auto rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.4)] object-contain ring-4 ring-white" />
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
 // ============================================================================
 // COMPONENTE AUXILIAR: MODAL DE ADIÇÃO
 // ============================================================================
