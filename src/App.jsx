@@ -1436,10 +1436,7 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
             <img src={viewImageUrl} alt="Comprovante" className="max-h-[85vh] w-auto rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.4)] object-contain ring-4 ring-white" />
           </div>
         </div>
-      )}
-    </div>
-  );
-}
+     
 
 // ============================================================================
 // COMPONENTE AUXILIAR: MODAL DE ADIÇÃO
