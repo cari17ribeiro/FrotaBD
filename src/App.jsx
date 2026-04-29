@@ -68,6 +68,7 @@ export default function App() {
   const [diesel, setDiesel] = useState([]);
   const [premiosLiberados, setPremiosLiberados] = useState(false);
   const [correcoesBloqueadas, setCorrecoesBloqueadas] = useState(false);
+  const [ultimaAtualizacao, setUltimaAtualizacao] = useState(null);
   const [isLoadingData, setIsLoadingData] = useState(false);
 
   // Injeta Tailwind, Supabase e SheetJS (Excel) dinamicamente
@@ -128,6 +129,7 @@ export default function App() {
       if (configData) {
         setPremiosLiberados(configData.premios_liberados);
         setCorrecoesBloqueadas(configData.correcoes_bloqueadas);
+        setUltimaAtualizacao(configData.ultima_atualizacao);
       }
 
       if (currentUser.admin) {
@@ -227,6 +229,7 @@ export default function App() {
             pendentes={pendentes} setPendentes={setPendentes} 
             premiosLiberados={premiosLiberados} setPremiosLiberados={setPremiosLiberados} 
             correcoesBloqueadas={correcoesBloqueadas} setCorrecoesBloqueadas={setCorrecoesBloqueadas}
+            ultimaAtualizacao={ultimaAtualizacao}
             refreshData={fetchData}
             supabase={supabaseClient}
           />
@@ -343,7 +346,7 @@ function LoginScreen({ onLogin, supabase }) {
 // ============================================================================
 // COMPONENTE: PAINEL DO MOTORISTA
 // ============================================================================
-function DriverDashboard({ currentUser, viagens, setViagens, pendentes, setPendentes, resumos, diesel, premiosLiberados, correcoesBloqueadas, refreshData, supabase }) {
+function DriverDashboard({ currentUser, viagens, setViagens, pendentes, setPendentes, resumos, diesel, premiosLiberados, correcoesBloqueadas, ultimaAtualizacao, refreshData, supabase }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [filtroCompetencia, setFiltroCompetencia] = useState('');
   const [filtroPeriodo, setFiltroPeriodo] = useState('');
@@ -451,6 +454,21 @@ function DriverDashboard({ currentUser, viagens, setViagens, pendentes, setPende
           <h1 className="text-3xl font-black text-slate-800 tracking-tight">Olá, {currentUser.motorista.split(' ')[0]} 👋</h1>
           <p className="text-slate-500 font-medium mt-1">Aqui está o resumo da sua performance.</p>
         </div>
+
+        {/* NOVO: Aviso de Atualização */}
+      {ultimaAtualizacao && (
+        <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl flex items-start space-x-4 shadow-sm animate-in fade-in slide-in-from-top-4 duration-500">
+          <div className="bg-blue-100 p-2.5 rounded-xl text-blue-600 shrink-0 mt-0.5">
+             <Clock className="w-5 h-5" />
+          </div>
+          <div>
+            <h4 className="text-sm font-bold text-blue-900">Base de Dados Sincronizada</h4>
+            <p className="text-sm text-blue-800/80 mt-0.5 font-medium">
+              As informações de viagens, premiações e médias de diesel foram atualizadas em: <strong className="text-blue-700">{new Date(ultimaAtualizacao).toLocaleString('pt-BR')}</strong>.
+            </p>
+          </div>
+        </div>
+      )}
         
         <div className="flex items-center space-x-3 bg-white px-5 py-3 rounded-2xl shadow-sm border border-slate-200/60 w-full sm:w-auto">
           <Award className="w-5 h-5 text-teal-500 flex-shrink-0" />
@@ -466,6 +484,7 @@ function DriverDashboard({ currentUser, viagens, setViagens, pendentes, setPende
           </select>
         </div>
       </div>
+      
 
       {/* Estatísticas */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -712,6 +731,7 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
   const [filterMotorista, setFilterMotorista] = useState('');
   const [filterMes, setFilterMes] = useState('');
   const [filterTipo, setFilterTipo] = useState('');
+  const toggleSort = (type) => setSortBy(sortBy === `${type}_desc` ? `${type}_asc` : `${type}_desc`);
 
   const aguardando = pendentes.filter(p => p.status === 'Em Análise');
   const historico = pendentes.filter(p => p.status !== 'Em Análise');
@@ -840,80 +860,6 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
     const wb = window.XLSX.utils.book_new();
     window.XLSX.utils.book_append_sheet(wb, ws, "Motoristas Cadastrados");
     window.XLSX.writeFile(wb, "motoristas_cadastrados.xlsx");
-  };
-
-  // Exportação em XLSX
-  const baixarModeloXLSX = (tipo) => {
-    if (!window.XLSX) return alert("Biblioteca Excel a carregar. Tente novamente em breves instantes.");
-    
-    let data = [];
-    let filename = "";
-
-    if (tipo === 'viagens') {
-      data = [
-        ["email", "origem", "destino", "container", "data", "motorista", "tipo", "mes", "status"],
-        ["motorista@premio.com", "Santos-Brasil", "CLIA", "MSKU1234567", "15/03/2026", "João Silva", "Importação", "março", "pendente"]
-      ];
-      filename = "modelo_base_viagens.xlsx";
-    } else if (tipo === 'resumos') {
-      data = [
-        ["email", "motorista", "competencia", "impo", "expo", "extra", "total_viagens", "premio"],
-        ["motorista@premio.com", "João Silva", "03/2026", 15, 10, 3, 28, "R$ 850,00"]
-      ];
-      filename = "modelo_base_resumos.xlsx";
-    } else if (tipo === 'diesel') {
-      data = [
-        ["email", "motorista", "competencia", "media"],
-        ["motorista@premio.com", "João Silva", "03/2026", 2.85]
-      ];
-      filename = "modelo_base_diesel.xlsx";
-    }
-
-    const ws = window.XLSX.utils.aoa_to_sheet(data);
-    const wb = window.XLSX.utils.book_new();
-    window.XLSX.utils.book_append_sheet(wb, ws, "Dados");
-    window.XLSX.writeFile(wb, filename);
-  };
-
-  
-  // Importação via XLSX (A sua função original mantida)
-  const handleImportXLSX = async (e, tipo) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    if (!window.XLSX) return alert("A biblioteca Excel ainda está a carregar...");
-    setIsImporting(tipo);
-
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      try {
-        const data = evt.target.result;
-        const workbook = window.XLSX.read(data, { type: 'binary' });
-        const sheetName = workbook.SheetNames[0];
-        const json = window.XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { raw: false });
-
-        if (json.length === 0) throw new Error("A planilha está vazia.");
-
-        let table = '';
-        if (tipo === 'viagens') table = 'minhas_viagens';
-        else if (tipo === 'resumos') table = 'resumo';
-        else if (tipo === 'diesel') table = 'diesel';
-
-        const { error } = await supabase.from(table).upsert(json);
-        
-        if (error) throw error;
-        
-        alert(`Sucesso! Importados ${json.length} registos para a base de dados.`);
-        refreshData(); 
-      } catch (err) {
-        console.error(err);
-        alert("Erro ao importar planilha: " + err.message);
-      } finally {
-        setIsImporting(false);
-        e.target.value = null; // reseta o input
-      }
-    };
-    reader.readAsBinaryString(file);
   };
 
   // Nova Função: Formatar Data do Excel
@@ -1115,6 +1061,8 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
           // ==========================================
           // CONCLUSÃO
           // ==========================================
+          const dataAtual = new Date().toISOString();
+          await supabase.from('configuracoes').update({ ultima_atualizacao: dataAtual }).eq('id', 1);
           let msgSucesso = `Sucesso! Base de dados atualizada:\n`;
           msgSucesso += `🚛 ${viagensParaInserir.length} viagens adicionadas (Mês: ${mesImportacao})\n`;
           if (resumosParaInserir.length > 0) msgSucesso += `🏆 ${resumosParaInserir.length} resumos atualizados (Substituição Total)\n`;
@@ -1263,54 +1211,7 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
                 </div>
               </div>
               {/* FIM DA NOVA SEÇÃO */}
-
-              {/* SEÇÃO ANTIGA (Resumos, Diesel e Viagens Manuais Avulsas) */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {[
-                  { id: 'viagens', title: 'Base de Viagens', sub: 'Histórico consolidado', icon: <Truck />, 
-                    styles: { bg: 'bg-blue-50', text: 'text-blue-600', btnHover: 'hover:bg-blue-100', border: 'border-blue-200' } 
-                  },
-                  { id: 'resumos', title: 'Base de Resumos', sub: 'Impo, Expo e Prémios', icon: <Award />, 
-                    styles: { bg: 'bg-teal-50', text: 'text-teal-600', btnHover: 'hover:bg-teal-100', border: 'border-teal-200' } 
-                  },
-                  { id: 'diesel', title: 'Base de Diesel', sub: 'Médias de consumo (km/L)', icon: <Droplet />, 
-                    styles: { bg: 'bg-cyan-50', text: 'text-cyan-600', btnHover: 'hover:bg-cyan-100', border: 'border-cyan-200' } 
-                  }
-                ].map((card, i) => (
-                  <div key={i} className="border-2 border-dashed border-slate-200 rounded-3xl p-6 flex flex-col items-center text-center hover:border-blue-300 hover:bg-slate-50 transition-all cursor-pointer group">
-                    <div className={`bg-${card.styles.bg.split('-')[1]}-50 text-${card.styles.text.split('-')[1]}-600 p-4 rounded-2xl mb-4 group-hover:scale-110 group-hover:shadow-lg transition-all duration-300`}>
-                      {React.cloneElement(card.icon, { className: 'w-7 h-7' })}
-                    </div>
-                    <h4 className="font-bold text-slate-800 text-lg mb-1">{card.title}</h4>
-                    <p className="text-xs text-slate-400 mb-6 font-medium px-4">{card.sub}</p>
-                    
-                    <div className="flex flex-col gap-2 w-full mt-auto">
-                      <label className={`cursor-pointer text-sm font-bold ${card.styles.text} ${card.styles.bg} border ${card.styles.border} px-5 py-3 rounded-xl ${card.styles.btnHover} transition-colors w-full flex items-center justify-center shadow-sm`}>
-                        {isImporting === card.id ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
-                        {isImporting === card.id ? 'A importar...' : 'Importar (.xlsx)'}
-                        <input 
-                          type="file" 
-                          accept=".xlsx, .xls" 
-                          className="hidden" 
-                          onChange={(e) => handleImportXLSX(e, card.id)} 
-                          disabled={!!isImporting} 
-                        />
-                      </label>
-                      <button 
-                        onClick={() => baixarModeloXLSX(card.id)}
-                        className="text-xs font-semibold text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 px-5 py-2.5 rounded-xl transition-colors w-full flex items-center justify-center shadow-sm"
-                      >
-                        <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" />
-                        Baixar Modelo
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
+    
         {/* Aba de Motoristas */}
         {activeTab === 'motoristas' && (
           <div className="p-6 sm:p-10">
