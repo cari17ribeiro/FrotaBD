@@ -1262,55 +1262,7 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
 
                 </div>
               </div>
-              {/* FIM DA NOVA SEÇÃO */}
-
-              {/* SEÇÃO ANTIGA (Resumos, Diesel e Viagens Manuais Avulsas) */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {[
-                  { id: 'viagens', title: 'Base de Viagens', sub: 'Histórico consolidado', icon: <Truck />, 
-                    styles: { bg: 'bg-blue-50', text: 'text-blue-600', btnHover: 'hover:bg-blue-100', border: 'border-blue-200' } 
-                  },
-                  { id: 'resumos', title: 'Base de Resumos', sub: 'Impo, Expo e Prémios', icon: <Award />, 
-                    styles: { bg: 'bg-teal-50', text: 'text-teal-600', btnHover: 'hover:bg-teal-100', border: 'border-teal-200' } 
-                  },
-                  { id: 'diesel', title: 'Base de Diesel', sub: 'Médias de consumo (km/L)', icon: <Droplet />, 
-                    styles: { bg: 'bg-cyan-50', text: 'text-cyan-600', btnHover: 'hover:bg-cyan-100', border: 'border-cyan-200' } 
-                  }
-                ].map((card, i) => (
-                  <div key={i} className="border-2 border-dashed border-slate-200 rounded-3xl p-6 flex flex-col items-center text-center hover:border-blue-300 hover:bg-slate-50 transition-all cursor-pointer group">
-                    <div className={`bg-${card.styles.bg.split('-')[1]}-50 text-${card.styles.text.split('-')[1]}-600 p-4 rounded-2xl mb-4 group-hover:scale-110 group-hover:shadow-lg transition-all duration-300`}>
-                      {React.cloneElement(card.icon, { className: 'w-7 h-7' })}
-                    </div>
-                    <h4 className="font-bold text-slate-800 text-lg mb-1">{card.title}</h4>
-                    <p className="text-xs text-slate-400 mb-6 font-medium px-4">{card.sub}</p>
-                    
-                    <div className="flex flex-col gap-2 w-full mt-auto">
-                      <label className={`cursor-pointer text-sm font-bold ${card.styles.text} ${card.styles.bg} border ${card.styles.border} px-5 py-3 rounded-xl ${card.styles.btnHover} transition-colors w-full flex items-center justify-center shadow-sm`}>
-                        {isImporting === card.id ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
-                        {isImporting === card.id ? 'A importar...' : 'Importar (.xlsx)'}
-                        <input 
-                          type="file" 
-                          accept=".xlsx, .xls" 
-                          className="hidden" 
-                          onChange={(e) => handleImportXLSX(e, card.id)} 
-                          disabled={!!isImporting} 
-                        />
-                      </label>
-                      <button 
-                        onClick={() => baixarModeloXLSX(card.id)}
-                        className="text-xs font-semibold text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 px-5 py-2.5 rounded-xl transition-colors w-full flex items-center justify-center shadow-sm"
-                      >
-                        <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" />
-                        Baixar Modelo
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
+              
         {/* Aba de Motoristas */}
         {activeTab === 'motoristas' && (
           <div className="p-6 sm:p-10">
