@@ -1211,6 +1211,9 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
                 </div>
               </div>
               {/* FIM DA NOVA SEÇÃO */}
+              </div> 
+          </div>
+        )} 
     
         {/* Aba de Motoristas */}
         {activeTab === 'motoristas' && (
