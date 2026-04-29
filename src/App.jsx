@@ -1522,10 +1522,7 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
+  
 // ============================================================================
 // COMPONENTE AUXILIAR: MODAL DE ADIÇÃO
 // ============================================================================
