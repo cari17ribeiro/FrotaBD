@@ -28,9 +28,7 @@ import {
   Download
 } from 'lucide-react';
 
-// ============================================================================
-// FUNÇÃO UTILITÁRIA PARA CÁLCULO DE PERÍODO (Dia 21 ao Dia 20)
-// ============================================================================
+
 const calcularPeriodoViagem = (dataStr) => {
   if (!dataStr) return '';
   try {
