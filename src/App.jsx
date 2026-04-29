@@ -1123,36 +1123,7 @@ function AdminDashboard({ viagens, setViagens, pendentes, setPendentes, premiosL
         </div>
       </div>
 
-      {/* Modern Segmented Tabs */}
-      <div className="bg-white p-1.5 rounded-2xl flex overflow-x-auto hide-scrollbar border border-slate-200 shadow-sm w-fit">
-        {[
-          { id: 'Em Análise', label: 'Pendentes', badge: aguardando.length },
-          { id: 'historico', label: 'Histórico' },
-          { id: 'todas', label: 'Base Completa' },
-          { id: 'importar', label: 'Importar Lotes', icon: <FileSpreadsheet className="w-4 h-4 mr-2" /> },
-          { id: 'motoristas', label: 'Motoristas', icon: <Users className="w-4 h-4 mr-2" /> }
-        ].map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center justify-center px-6 py-2.5 rounded-xl font-bold text-sm transition-all whitespace-nowrap ${
-              activeTab === tab.id 
-                ? 'bg-blue-600 text-white shadow-md' 
-                : 'text-slate-500 hover:text-blue-600 hover:bg-blue-50/50'
-            }`}
-          >
-            {tab.icon}
-            {tab.label}
-            {tab.badge > 0 && (
-              <span className={`ml-2 px-2 py-0.5 rounded-md text-[10px] uppercase tracking-wider ${
-                activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
-              }`}>
-                {tab.badge}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
+     
 
       <div className="bg-white rounded-3xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-slate-100 overflow-hidden">
         
